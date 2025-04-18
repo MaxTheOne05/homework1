@@ -5,21 +5,47 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <libgen.h>
 
-int fai_tutto(FILE *fi){
+int fai_tutto(char *in_filename, char *out_filename){
 
+	//apriamo direttamente in_filename perche possiamo assumere che sia nella CWD
+	FILE *fi = fopen(in_filename, "r");
+	if (fi == NULL){
+		fprintf(stderr, "Errore in apertura! Impossibile aprire il file di input: %s\n", in_filename);
+		exit(1);
+		return 1;
+	}
+
+    //apriamo il file di output se necessario, altrimenti è stdout
+	FILE *fout = stdout;
+	if (out_filename != NULL){
+		fout = fopen(out_filename, "w");
+		if (fout == NULL){
+			fprintf(stderr, "Errore apertura file output: %s\n", out_filename);
+			exit(1);
+    	}
+	}
+
+    //leggiamo il contenuto del file di input
     char *testo = leggi(fi);
+
+    //ci prendiamo la directory in cui sono salvati tutti i file .h e .c da includere
+    char copia[2048];
+    strncpy(copia, in_filename, 2048);  //è importante fare la ocpia perche dirname() modifica la stringa
+    char *input_dir = dirname(copia);   //estrae il path della cartella dal path del file
 
     while (conta("#include", testo)>0){
         //rimuovi commenti
-        char *tmp = risolvi_includes(testo);    //...
-        free(testo);                            //boh da vedere :)
+        char *tmp = risolvi_includes(testo, input_dir);     //...
+        free(testo);                                        //boh da vedere :)
         testo = tmp;
     }
     
     free(testo);
     return 0;
 }
+
 
 
 //Dato il nome di un file lo apre, richiama la funzione leggi e ne restituisce il contenuto letto
@@ -48,7 +74,7 @@ char *leggi(FILE *fi){
     char riga[2048];
     while (fgets(riga, sizeof(riga), fi) != NULL) {
         size_t lenRiga = strlen(riga);
-        testo = realloc(testo, lenTesto + lenRiga); //aumentiamo lo spazio allocato
+        testo = safe_realloc(testo, lenTesto + lenRiga); //aumentiamo lo spazio allocato
         strcat(testo, riga);                        //e concateniamo la riga alla fine di testo.
         lenTesto += lenRiga;                        //aumentiamo la lunghezza del testo
 
@@ -63,7 +89,7 @@ char *leggi(FILE *fi){
 }
 
 // Funzione principale che processa gli include
-char* risolvi_includes(char* input) {
+char* risolvi_includes(char *input, char *input_dir) {
     //similmente a quanto fatto con leggi allochiamo dinamicamente la memoria
     size_t lenResult = 1;                   //inizialmente vale solo 1 perche contiene solo il terminatore '\0'
     size_t posizione = 0;                   //ci dice il prossimo punto in cui andremo a scrivere
@@ -80,7 +106,7 @@ char* risolvi_includes(char* input) {
 
             if (posizione + 1 > lenResult) {            //se non c'è abbastanza spazio per aggiungere un nuovo char
                 lenResult *= 2;                         //aumentiamo lo spazio allocato esponenzialmente (per maggior efficienza)
-                result = realloc(result, lenResult);
+                result = safe_realloc(result, lenResult);
             }      
             result[posizione++] = *current_pos;         //aggiungiamo il carattere in penultima posizione
             result[posizione] = '\0';                   //aggiungiamo \0 in ultima posizione (senza strcat dobbiamo farlo manualmente noi)
@@ -104,12 +130,16 @@ char* risolvi_includes(char* input) {
             current_pos++;                        //salta il carattere di quotazione finale
             filename[i] = '\0';
             
+            //concateniamo input_dir e filename
+            char fullpath[2048];
+            snprintf(fullpath, sizeof(fullpath), "%s/%s", input_dir, filename);
+            //NON possiamo usare strcat perche andrebbe a modificare direttamente dir_name, che invece va lasciata intatta e uguale per tutti i file .h
 
-            char* included_content = leggi_da_filename(filename);   //prendiamo il contenuto del file da includere (il caso di fallimento è gia gestito in leggi())
+            char* included_content = leggi_da_filename(fullpath);   //prendiamo il contenuto del file da includere (il caso di fallimento è gia gestito in leggi())
             size_t lenTesto = strlen(included_content);             //verifichiamo che ci sia abbastanza spazio per scrivere
             if (posizione+lenTesto+1 > lenResult) {
                 lenResult *= 2;                                     //se non c'è spazio lo creiamo (aumentando esponenzialmente, come prima)
-                result = realloc(result, lenResult);
+                result = safe_realloc(result, lenResult);
             }
             strcat(result, included_content);                       //aggiungiamo il contenuto a result
             free(included_content);
@@ -137,4 +167,14 @@ int conta(char *parola, char *testo)  {
                                 //al carattere successivo alla partola appena vista
     }
     return count;
+}
+
+//effettua comunque un realloc ma gestendo meglio i casi in cui realloc fallisca
+char* safe_realloc(char* ptr, size_t new_size) {
+    char* tmp = realloc(ptr, new_size);
+    if (!tmp) {
+        free(ptr);
+        return NULL;
+    }
+    return tmp;
 }

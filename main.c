@@ -35,25 +35,7 @@ int main(int argc, char *argv[]){
 		return 1;				
 	}
 	
-
-	//apriamo direttamente in_filename perche possiamo assumere che sia nella CWD
-	FILE *fi = fopen(in_filename, "r");
-	if (fi == NULL){
-		fprintf(stderr, "Errore in apertura! Impossibile aprire il file di input: %s\n", in_filename);
-		exit(1);
-		return 1;
-	}
-
-	FILE *fout = stdout;
-	if (out_filename != NULL){
-		fout = fopen(out_filename, "w");
-		if (fout == NULL){
-			fprintf(stderr, "Errore apertura file output: %s\n", out_filename);
-			exit(1);
-    	}
-	}
-	
-	fai_tutto(fi);
+	fai_tutto(in_filename, out_filename);
 	
 	if (verbose){
 		fai_verbose();
