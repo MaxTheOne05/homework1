@@ -1,6 +1,5 @@
 
 #include "progetto.h"
-#include "funzioni.c"
 
 #include <stdio.h>
 #include <string.h>
@@ -51,8 +50,8 @@ int main(int argc, char *argv[]){
 		if (fout == NULL){
 			fprintf(stderr, "Errore apertura file output: %s\n", out_filename);
 			exit(1);
-    }
-}
+    	}
+	}
 	
 	fai_tutto(fi);
 	

@@ -7,7 +7,16 @@
 
 int fai_tutto(FILE *fi){
 
-    //inizialmente leggiamo tutto il testo in input. Ignorando la risoluzione di include e rimozione commenti.
+    char *testo = leggi(fi);
+
+    printf("%s", testo);    //debug
+    
+    free(testo);
+    return 0;
+}
+
+char *leggi(FILE *fi){
+        //inizialmente leggiamo tutto il testo in input. Ignorando la risoluzione di include e rimozione commenti.
     //(quello lo faremo piu avanti e salveremo il risultato in un'altra stringa)
     
     size_t lenTesto = 1;                //lunghezza "dinamica" del file in input. Partiamo da 1 per includere '\0'
@@ -23,16 +32,14 @@ int fai_tutto(FILE *fi){
         strcat(testo, riga);                        //e concateniamo la riga alla fine di testo.
         lenTesto += lenRiga;                        //aumentiamo la lunghezza del testo
 
-        //Gestiamo l'eventuale caso in cui realloc dovesse fallire liberando la memoria e ritornando 1 (errore)
+        //Gestiamo l'eventuale caso in cui realloc dovesse fallire liberando la memoria e ritornando NULL (errore)
         if (testo == NULL){
             free(testo);
-            return 1;
+            return NULL;
         }
     }
 
-    printf("%s", testo);
-    free(testo);
-    return 0;
+    return testo;
 }
 
 void fai_verbose(){
