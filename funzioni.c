@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <ctype.h>
 
 int fai_tutto(FILE *fi){
 
@@ -25,7 +26,7 @@ int fai_tutto(FILE *fi){
 char *leggi_da_filename(char *filename){
     FILE *f = fopen(filename, "r");
     if (f == NULL) {
-        fprintf(stderr, "Errore apertura file output: %s\n", filename);
+        fprintf(stderr, "<leggi_da_filename>: Errore apertura file: %s\n", filename);
 		exit(1);
     }
     char* testo = leggi(f);
