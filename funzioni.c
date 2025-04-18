@@ -9,14 +9,33 @@ int fai_tutto(FILE *fi){
 
     char *testo = leggi(fi);
 
-    printf("%s", testo);    //debug
+    while (conta("#include", testo)>0){
+        //rimuovi commenti
+        char *tmp = risolvi_includes(testo);    //...
+        free(testo);                            //boh da vedere :)
+        testo = tmp;
+    }
     
     free(testo);
     return 0;
 }
 
+
+//Dato il nome di un file lo apre, richiama la funzione leggi e ne restituisce il contenuto letto
+char *leggi_da_filename(char *filename){
+    FILE *f = fopen(filename, "r");
+    if (f == NULL) {
+        fprintf(stderr, "Errore apertura file output: %s\n", filename);
+		exit(1);
+    }
+    char* testo = leggi(f);
+    fclose(f);
+    return testo;
+}
+
+
 char *leggi(FILE *fi){
-        //inizialmente leggiamo tutto il testo in input. Ignorando la risoluzione di include e rimozione commenti.
+    //inizialmente leggiamo tutto il testo in input. Ignorando la risoluzione di include e rimozione commenti.
     //(quello lo faremo piu avanti e salveremo il risultato in un'altra stringa)
     
     size_t lenTesto = 1;                //lunghezza "dinamica" del file in input. Partiamo da 1 per includere '\0'
@@ -42,11 +61,69 @@ char *leggi(FILE *fi){
     return testo;
 }
 
+// Funzione principale che processa gli include
+char* risolvi_includes(char* input) {
+    //similmente a quanto fatto con leggi allochiamo dinamicamente la memoria
+    size_t lenResult = 1;                   //inizialmente vale solo 1 perche contiene solo il terminatore '\0'
+    size_t posizione = 0;                   //ci dice il prossimo punto in cui andremo a scrivere
+    char *result = malloc(lenResult);       
+    result[0] = '\0';
+
+    const char* current_pos = input;                        //ci posizioniamo all'inizio del file di input per iniziare la ricerca della direttiva #include.
+    while (*current_pos) {                                  //finche non raggiungiamo fine stringa
+
+        if (strncmp(current_pos, "#include", 8) != 0) {     //Controlla se i prossimi 8 char sono "#include". 
+
+            //se i prossimi char NON sono "#include" copiamo carattere per carattere. Tuttavia NON possiamo usare strcat
+            //perche richiede di unire due stringhe, noi invece dobbiamo aggiungere un singolo carattere a result.
+
+            if (posizione + 1 > lenResult) {            //se non c'è abbastanza spazio per aggiungere un nuovo char
+                lenResult *= 2;                         //aumentiamo lo spazio allocato esponenzialmente (per maggior efficienza)
+                result = realloc(result, lenResult);
+            }      
+            result[posizione++] = *current_pos;         //aggiungiamo il carattere in penultima posizione
+            result[posizione] = '\0';                   //aggiungiamo \0 in ultima posizione (senza strcat dobbiamo farlo manualmente noi)
+            current_pos++;   
+
+        } else {
+
+            //se i prossimi char sono "#include" saltiamo la parola "#include" e gli spazi per andare a cercare il nome del file
+            current_pos += 8;
+            while (isspace(*current_pos)){
+                current_pos++;                            
+            }
+            
+            char filename[1024];                //conterrà il nome del file
+            int i = 0;                          //ci serve per scorrere filename
+
+            current_pos++;                        //salta il carattere di quotazione iniziale
+            while (*current_pos != '"' && *current_pos != '>' ) {
+                filename[i++] = *current_pos++;   //copia carattere per carattere il nome del file
+            }
+            current_pos++;                        //salta il carattere di quotazione finale
+            filename[i] = '\0';
+            
+
+            char* included_content = leggi_da_filename(filename);   //prendiamo il contenuto del file da includere (il caso di fallimento è gia gestito in leggi())
+            size_t lenTesto = strlen(included_content);             //verifichiamo che ci sia abbastanza spazio per scrivere
+            if (posizione+lenTesto+1 > lenResult) {
+                lenResult *= 2;                                     //se non c'è spazio lo creiamo (aumentando esponenzialmente, come prima)
+                result = realloc(result, lenResult);
+            }
+            strcat(result, included_content);                       //aggiungiamo il contenuto a result
+            free(included_content);
+            //liberiamo lo spazio di included_content poiche abbiamo copiato in result e terminato         
+        }
+    }
+    
+    return result;
+}
+
 void fai_verbose(){
     
 }
 
-//conta il numero di occorrenze di "parola" in "testo"
+//Conta il numero di occorrenze di "parola" in "testo"
 int conta(char *parola, char *testo)  {
     int count = 0;
     char *pos = testo;          //è un puntatore all'inizio del testo

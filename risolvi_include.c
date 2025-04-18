@@ -53,53 +53,40 @@ char* process_includes(const char* input) {
     if (!result) return NULL;
     result[0] = '\0';
 
-    const char* current_pos = input;
-    while (*current_pos) {
-        // Cerca la direttiva #include
-        if (strncmp(current_pos, "#include", 8) == 0 && isspace(current_pos[8])) {
-            const char* include_start = current_pos + 8;
-            
-            // Salta gli spazi bianchi
-            while (isspace(*include_start)) include_start++;
-            
-            // Estrai il nome del file (supporta sia "file" che <file>)
-            char filename[MAX_PATH_LENGTH];
-            int i = 0;
-            
-            if (*include_start == '"' || *include_start == '<') {
-                char quote_char = *include_start;
-                include_start++; // salta il carattere di quotazione iniziale
-                
-                while (*include_start && *include_start != quote_char && i < MAX_PATH_LENGTH - 1) {
-                    filename[i++] = *include_start++;
-                }
-                
-                if (*include_start == quote_char) include_start++; // salta il carattere di quotazione finale
-            } else {
-                // Se non ci sono quotazioni, leggi fino al prossimo spazio/newline
-                while (*include_start && !isspace(*include_start) && i < MAX_PATH_LENGTH - 1) {
-                    filename[i++] = *include_start++;
-                }
+    const char* current_pos = input;                        //ci posizioniamo all'inizio del file di input per iniziare la ricerca della direttiva #include.
+    while (*current_pos) {                                  //finche non raggiungiamo fine stringa
+
+        if (strncmp(current_pos, "#include", 8) != 0) {     //Controlla se i prossimi 8 char sono "#include". 
+
+            //se i prossimi char NON sono "#include" copiamo carattere per carattere. Tuttavia NON possiamo usare strcat
+            //perche richiede di unire due stringhe, noi invece dobbiamo aggiungere un singolo carattere a result,
+            result[strlen(result)] = *current_pos;  
+            result[strlen(result) + 1] = '\0';      //senza strcat dobbiamo gestire manualmente il terminatore di stringa
+            current_pos++;   
+
+        } else {
+
+            //se i prossimi char sono "#include" saltiamo la parola "#include" e gli spazi per andare a cercare il nome del file
+            current_pos += 8;
+            while (isspace(*current_pos)){
+                current_pos++;                            
             }
             
+            char filename[MAX_PATH_LENGTH];     //conterrà il nome del file
+            int i = 0;                          //ci serve per scorrere filename
+
+            current_pos++;                        //salta il carattere di quotazione iniziale
+            while (*current_pos != '"' && *current_pos != '>' ) {
+                filename[i++] = *current_pos++;   //copia carattere per carattere il nome del file
+            }
+            current_pos++;                        //salta il carattere di quotazione finale
             filename[i] = '\0';
             
-            // Leggi il file incluso
+            //Prende il contenuto del file da includere e lo incolla nella stringa result
             char* included_content = read_file(filename);
-            if (included_content) {
-                strcat(result, included_content);
-                free(included_content);
-            } else {
-                fprintf(stderr, "Warning: could not include file '%s'\n", filename);
-            }
-            
-            // Aggiorna la posizione corrente
-            current_pos = include_start;
-        } else {
-            // Copia il carattere corrente nel risultato
-            char temp[2] = {*current_pos, '\0'};
-            strcat(result, temp);
-            current_pos++;
+            strcat(result, included_content);
+            free(included_content);
+            //liberiamo lo spazio di included_content poiche abbiamo copiato in result e terminato         
         }
     }
     
