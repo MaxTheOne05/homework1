@@ -75,8 +75,8 @@ char *leggi(FILE *fi){
     while (fgets(riga, sizeof(riga), fi) != NULL) {
         size_t lenRiga = strlen(riga);
         testo = safe_realloc(testo, lenTesto + lenRiga); //aumentiamo lo spazio allocato
-        strcat(testo, riga);                        //e concateniamo la riga alla fine di testo.
-        lenTesto += lenRiga;                        //aumentiamo la lunghezza del testo
+        strcat(testo, riga);                            //e concateniamo la riga alla fine di testo.
+        lenTesto += lenRiga;                            //aumentiamo la lunghezza del testo
 
         //Gestiamo l'eventuale caso in cui realloc dovesse fallire liberando la memoria e ritornando NULL (errore)
         if (testo == NULL){
@@ -137,11 +137,15 @@ char* risolvi_includes(char *input, char *input_dir) {
 
             char* included_content = leggi_da_filename(fullpath);   //prendiamo il contenuto del file da includere (il caso di fallimento è gia gestito in leggi())
             size_t lenTesto = strlen(included_content);             //verifichiamo che ci sia abbastanza spazio per scrivere
-            if (posizione+lenTesto+1 > lenResult) {
+
+            size_t spazio_necessario = posizione+lenTesto+1;        //dobbiamo scrivere: tutto il testo fino ad ora + il testo dell'include + \0
+            while (spazio_necessario > lenResult) {
                 lenResult *= 2;                                     //se non c'è spazio lo creiamo (aumentando esponenzialmente, come prima)
-                result = safe_realloc(result, lenResult);
             }
-            strcat(result, included_content);                       //aggiungiamo il contenuto a result
+            result = safe_realloc(result, lenResult);
+            memcpy(result + posizione, included_content, lenTesto); //aggiungiamo il contenuto a result
+            posizione += lenTesto;
+            result[posizione] = '\0';
             free(included_content);
             //liberiamo lo spazio di included_content poiche abbiamo copiato in result e terminato         
         }
