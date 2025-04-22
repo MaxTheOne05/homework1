@@ -10,5 +10,6 @@ char* risolvi_includes(char *testo, char *input_dir);
 void fai_verbose();
 int conta_include(char *testo);
 char* safe_realloc(char* ptr, size_t new_size);
+int scrivi(char *out_filename, char *testo);
 
 #endif

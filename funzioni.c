@@ -41,8 +41,9 @@ int fai_tutto(char *in_filename, char *out_filename){
         free(testo);                                        //boh da vedere :)
         testo = tmp;
     }
-    
+    scrivi(out_filename, testo);         //ritorna 0 se va tutto bene, 1 se c'è errore in scrittura
     free(testo);
+
     return 0;
 }
 
@@ -184,4 +185,32 @@ char* safe_realloc(char* ptr, size_t new_size) {
         return NULL;
     }
     return tmp;
+}
+
+int scrivi(char *out_filename, char *testo) {
+    // Se out_filename è NULL, scriviamo su stdout con printf
+    if (out_filename == NULL) {
+        printf("%s", testo);
+        return 0;
+    }
+
+    //Se abbiamo un file di utput lo apriam0
+    FILE *fout = fopen(out_filename, "w");
+    if (fout == NULL) {
+        fprintf(stderr, "Errore apertura file output: %s\n", out_filename);
+        return 1;
+    }
+
+    size_t len = strlen(testo);                     //numero di elementi da scrivere
+    size_t written = fwrite(testo, 1, len, fout);   //fwrite restituisce il numero di elementi effettivamente scritti
+    fclose(fout);                                   //chiudiamo il file
+
+    //Se il numero di elementi scritti != elementi da scrivere (ne abbiamo persi alcuni) abbiamo un errore
+    if (written != len) {
+        fprintf(stderr, "Errore scrittura file output: %s\n", out_filename);
+        return 1;
+    }
+
+    //se invece abbiamo sicrtto tutto correttamente possiamo ritornare 0
+    return 0;
 }
