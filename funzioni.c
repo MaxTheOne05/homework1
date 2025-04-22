@@ -35,9 +35,9 @@ int fai_tutto(char *in_filename, char *out_filename){
     strncpy(copia, in_filename, 2048);  //è importante fare la ocpia perche dirname() modifica la stringa
     char *input_dir = dirname(copia);   //estrae il path della cartella dal path del file
 
-    while (conta("#include", testo)>0){
-        //rimuovi commenti
-        char *tmp = risolvi_includes(testo, input_dir);     //...
+    while (conta_include(testo)>0){
+        //inserire la funzione che rimuove i commenti
+        char *tmp = risolvi_includes(testo, input_dir);     //tmp conterrà il testo aggiornato con gli include risolti
         free(testo);                                        //boh da vedere :)
         testo = tmp;
     }
@@ -88,15 +88,15 @@ char *leggi(FILE *fi){
     return testo;
 }
 
-// Funzione principale che processa gli include
-char* risolvi_includes(char *input, char *input_dir) {
-    //similmente a quanto fatto con leggi allochiamo dinamicamente la memoria
+//Risolve tutti gli include con "" presenti in testo
+char* risolvi_includes(char *testo, char *input_dir) {
+                                            //similmente a quanto fatto con leggi allochiamo dinamicamente la memoria
     size_t lenResult = 1;                   //inizialmente vale solo 1 perche contiene solo il terminatore '\0'
     size_t posizione = 0;                   //ci dice il prossimo punto in cui andremo a scrivere
     char *result = malloc(lenResult);       
     result[0] = '\0';
 
-    const char* current_pos = input;                        //ci posizioniamo all'inizio del file di input per iniziare la ricerca della direttiva #include.
+    const char* current_pos = testo;                        //ci posizioniamo all'inizio del file di input per iniziare la ricerca della direttiva #include.
     while (*current_pos) {                                  //finche non raggiungiamo fine stringa
 
         if (strncmp(current_pos, "#include", 8) != 0) {     //Controlla se i prossimi 8 char sono "#include". 
@@ -120,20 +120,20 @@ char* risolvi_includes(char *input, char *input_dir) {
                 current_pos++;                            
             }
             
-            char filename[1024];                //conterrà il nome del file
-            int i = 0;                          //ci serve per scorrere filename
+            char filename[1024];                    //conterrà il nome del file
+            int i = 0;                              //ci serve per scorrere filename
 
-            current_pos++;                        //salta il carattere di quotazione iniziale
-            while (*current_pos != '"' && *current_pos != '>' ) {
-                filename[i++] = *current_pos++;   //copia carattere per carattere il nome del file
+            current_pos++;                          //salta la virgoletta iniziale
+            while (*current_pos != '"') {
+                filename[i++] = *current_pos++;     //copia carattere per carattere il nome del file
             }
-            current_pos++;                        //salta il carattere di quotazione finale
+            current_pos++;                          //salta la virgoletta finale
             filename[i] = '\0';
             
-            //concateniamo input_dir e filename
+            //concateniamo input_dir e filename 
             char fullpath[2048];
             snprintf(fullpath, sizeof(fullpath), "%s/%s", input_dir, filename);
-            //NON possiamo usare strcat perche andrebbe a modificare direttamente dir_name, che invece va lasciata intatta e uguale per tutti i file .h
+            //NON possiamo usare strcat perche andrebbe a modificare direttamente dir_name, che invece va lasciata intatta (poiche ci servirà per gli altri file da includere)
 
             char* included_content = leggi_da_filename(fullpath);   //prendiamo il contenuto del file da includere (il caso di fallimento è gia gestito in leggi())
             size_t lenTesto = strlen(included_content);             //verifichiamo che ci sia abbastanza spazio per scrivere
@@ -158,17 +158,20 @@ void fai_verbose(){
     
 }
 
-//Conta il numero di occorrenze di "parola" in "testo"
-int conta(char *parola, char *testo)  {
+int conta_include(char *testo) {
     int count = 0;
-    char *pos = testo;          //è un puntatore all'inizio del testo
+    char *pos = testo;
 
-    //strstr(pos, parola) restituisce un puntatore alla prima occorrenza di "parola" nel testo puntato da "pos"
-    //(se facessimo strstr(pos, testo) restituirebbe sempre la prima occorrenza. Con pos rendiamo il tutto "dinamico")
-    while ((pos = strstr(pos, parola)) != NULL) {
-        count++;                //ho trovato la parola => aumento il conteggio
-        pos += strlen(parola);  //con l'artimetica dei puntatori andiamo a puntare 
-                                //al carattere successivo alla partola appena vista
+    //trova la prima occorrenza di #include nel testo (pos puntera al primo carattere di #include, quindi a #)
+    while ((pos = strstr(pos, "#include ")) != NULL) {
+        pos += 9;                   //saltiamo la parola #include
+        while (isspace(*pos)) {     //salta tutti gli spazi dopo la parola #include
+            pos++;
+        }
+
+        if (*pos == '"') {      //Se il prossimo carattere è una virgoletta
+            count++;            //aumentiamo il conteggio perche abbiamo trovato un #include "filename"
+        }
     }
     return count;
 }
