@@ -27,12 +27,12 @@ int fai_tutto(char *in_filename, char *out_filename){
     	}
 	}
 
-    //leggiamo il contenuto del file di input
+    //leggiamo il contenuto del file di input. La variabile conterrà il puntatore al primo carattere del file letto
     char *testo = leggi(fi);
 
     //ci prendiamo la directory in cui sono salvati tutti i file .h e .c da includere
     char copia[2048];
-    strncpy(copia, in_filename, 2048);  //è importante fare la ocpia perche dirname() modifica la stringa
+    strncpy(copia, in_filename, 2048);  //è importante fare la copia perche dirname() modifica la stringa
     char *input_dir = dirname(copia);   //estrae il path della cartella dal path del file
 
     while (conta_include(testo)>0){
@@ -41,6 +41,7 @@ int fai_tutto(char *in_filename, char *out_filename){
         free(testo);                                        //boh da vedere :)
         testo = tmp;
     }
+    
     scrivi(out_filename, testo);         //ritorna 0 se va tutto bene, 1 se c'è errore in scrittura
     free(testo);
 
@@ -93,62 +94,76 @@ char *leggi(FILE *fi){
 char* risolvi_includes(char *testo, char *input_dir) {
                                             //similmente a quanto fatto con leggi allochiamo dinamicamente la memoria
     size_t lenResult = 1;                   //inizialmente vale solo 1 perche contiene solo il terminatore '\0'
-    size_t posizione = 0;                   //ci dice il prossimo punto in cui andremo a scrivere
+    size_t write_pos = 0;                   //ci dice il prossimo punto in cui andremo a scrivere
     char *result = malloc(lenResult);       
     result[0] = '\0';
 
-    const char* current_pos = testo;                        //ci posizioniamo all'inizio del file di input per iniziare la ricerca della direttiva #include.
-    while (*current_pos) {                                  //finche non raggiungiamo fine stringa
+    char* read_pos = testo;                             //iniziamo a leggere dall'inizio del file di input 
+    while (*read_pos != '\0') {                         //iteriamo finche non raggiungiamo fine stringa
 
-        if (strncmp(current_pos, "#include", 8) != 0) {     //Controlla se i prossimi 8 char sono "#include". 
+        if (strncmp(read_pos, "#include", 8) != 0) {     //Controlla se i prossimi 8 char sono un #include
 
-            //se i prossimi char NON sono "#include" copiamo carattere per carattere. Tuttavia NON possiamo usare strcat
+            //CASO 1: i prossimi char NON sono "#include" copiamo carattere per carattere. Tuttavia NON possiamo usare strcat
             //perche richiede di unire due stringhe, noi invece dobbiamo aggiungere un singolo carattere a result.
 
-            if (posizione + 1 > lenResult) {            //se non c'è abbastanza spazio per aggiungere un nuovo char
+            if (write_pos + 1 > lenResult) {            //se non c'è abbastanza spazio per aggiungere un nuovo char
                 lenResult *= 2;                         //aumentiamo lo spazio allocato esponenzialmente (per maggior efficienza)
                 result = safe_realloc(result, lenResult);
             }      
-            result[posizione++] = *current_pos;         //aggiungiamo il carattere in penultima posizione
-            result[posizione] = '\0';                   //aggiungiamo \0 in ultima posizione (senza strcat dobbiamo farlo manualmente noi)
-            current_pos++;   
+            result[write_pos++] = *read_pos;            //aggiungiamo il carattere in penultima posizione
+            result[write_pos] = '\0';                   //aggiungiamo \0 in ultima posizione (senza strcat dobbiamo farlo manualmente noi)
+            read_pos++;                                 //andiamo a leggere il char successivo
 
         } else {
 
-            //se i prossimi char sono "#include" saltiamo la parola "#include" e gli spazi per andare a cercare il nome del file
-            current_pos += 8;
-            while (isspace(*current_pos)){
-                current_pos++;                            
+            //se i prossimi char sono #include saltiamo l'intera parola gli spazi per cercare "" oppure <>
+            char *p = read_pos + 8;
+            while (isspace(*p)){     
+                p++;                            
             }
             
-            char filename[1024];                    //conterrà il nome del file
-            int i = 0;                              //ci serve per scorrere filename
+            if (*p == '"'){
+                //CASO 2: è un include "". Apriamo il file e ne compia l'intero contenuto in result
+                char filename[1024];                    //conterrà il nome del file
+                int i = 0;                              //ci serve per scorrere filename
 
-            current_pos++;                          //salta la virgoletta iniziale
-            while (*current_pos != '"') {
-                filename[i++] = *current_pos++;     //copia carattere per carattere il nome del file
-            }
-            current_pos++;                          //salta la virgoletta finale
-            filename[i] = '\0';
-            
-            //concateniamo input_dir e filename 
-            char fullpath[2048];
-            snprintf(fullpath, sizeof(fullpath), "%s/%s", input_dir, filename);
-            //NON possiamo usare strcat perche andrebbe a modificare direttamente dir_name, che invece va lasciata intatta (poiche ci servirà per gli altri file da includere)
+                read_pos = p + 1;                       //salta la virgoletta iniziale (DA DE-COMMENTARE DOPO)
+                while (*read_pos != '"') {
+                    filename[i++] = *read_pos++;        //copia carattere per carattere il nome del file
+                }
+                read_pos++;                             //salta la virgoletta finale
+                filename[i] = '\0';                     
+                
+                //concateniamo input_dir e filename 
+                char fullpath[2048];
+                snprintf(fullpath, sizeof(fullpath), "%s/%s", input_dir, filename);
+                //NON possiamo usare strcat perche andrebbe a modificare direttamente dir_name, che invece va lasciata intatta (poiche ci servirà per gli altri file da includere)
 
-            char* included_content = leggi_da_filename(fullpath);   //prendiamo il contenuto del file da includere (il caso di fallimento è gia gestito in leggi())
-            size_t lenTesto = strlen(included_content);             //verifichiamo che ci sia abbastanza spazio per scrivere
+                char* included_content = leggi_da_filename(fullpath);   //prendiamo il contenuto del file da includere (il caso di fallimento è gia gestito in leggi())
+                size_t lenTesto = strlen(included_content);             //verifichiamo che ci sia abbastanza spazio per scrivere
 
-            size_t spazio_necessario = posizione+lenTesto+1;        //dobbiamo scrivere: tutto il testo fino ad ora + il testo dell'include + \0
-            while (spazio_necessario > lenResult) {
-                lenResult *= 2;                                     //se non c'è spazio lo creiamo (aumentando esponenzialmente, come prima)
-            }
-            result = safe_realloc(result, lenResult);
-            memcpy(result + posizione, included_content, lenTesto); //aggiungiamo il contenuto a result
-            posizione += lenTesto;
-            result[posizione] = '\0';
-            free(included_content);
-            //liberiamo lo spazio di included_content poiche abbiamo copiato in result e terminato         
+                size_t spazio_necessario = write_pos+lenTesto+1;        //dobbiamo scrivere: tutto il testo fino ad ora + il testo dell'include + \0
+                while (spazio_necessario > lenResult) {
+                    lenResult *= 2;                                     //se non c'è spazio lo creiamo (aumentando esponenzialmente, come prima)
+                }
+                result = safe_realloc(result, lenResult);
+                memcpy(result + write_pos, included_content, lenTesto); //aggiungiamo il contenuto a result
+                write_pos += lenTesto;
+                result[write_pos] = '\0';
+                free(included_content);
+                //liberiamo lo spazio di included_content poiche abbiamo copiato in result e terminato   
+
+            } else {
+                //CASO 3: è un include <>. Copiamo tutto.
+
+                if (write_pos + 1 > lenResult) {            //se non c'è abbastanza spazio per aggiungere un nuovo char
+                    lenResult *= 2;                         //aumentiamo lo spazio allocato esponenzialmente (per maggior efficienza)
+                    result = safe_realloc(result, lenResult);
+                }      
+                result[write_pos++] = *read_pos;            //aggiungiamo il carattere in penultima posizione
+                result[write_pos] = '\0';                   //aggiungiamo \0 in ultima posizione (senza strcat dobbiamo farlo manualmente noi)
+                read_pos++;                                 //andiamo a leggere il char successivo
+            }      
         }
     }
     
