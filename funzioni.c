@@ -20,11 +20,17 @@ int fai_tutto(char *in_filename, char *out_filename){
 
     //finche ci sono include VALIDI nel testo li rimuoviamo
     while (conta_include(testo)>0){
-        //inserire la funzione che rimuove i commenti       //per evitare di risolvere include commentati andiamo prima a rimuovere i commenti
-        char *tmp = risolvi_includes(testo, input_dir);     //tmp conterrà il testo aggiornato con gli include risolti
-        free(testo);                                        //boh da vedere :)
-        testo = tmp;
+        char *tmp = rimuovi_commenti(testo);        //per evitare di risolvere include commentati andiamo prima a rimuovere i commenti. Tuttavia rimuovi_commenti alloca nuova memoria
+        free(testo);                                //e la assegniamo a testo. Questo significa che il valore precedente di testo non sarà più accessibile e dobbiamo liberarlo
+
+        testo = risolvi_includes(tmp, input_dir);   //tmp conterrà il testo aggiornato con gli include risolti
+        free(tmp);                                  //Analogo a prima. L'area di memoria puntata da tmp non sarà piu accessibile e quindi dobbiamo liberarla
     }
+
+    //rimuoviamo eventuali commenti introdotti con l'ultimo include (MIGLIORABILE)
+    char *tmp = rimuovi_commenti(testo);
+    free(testo);
+    testo = tmp;
     
     //scriviamo il risultato nel file di output o nello stdout
     scrivi(out_filename, testo);
@@ -229,6 +235,54 @@ int scrivi(char *out_filename, char *testo) {
     return 0;
 }
 
+
+//Rimuove TUTTI i commenti dal testo
+char *rimuovi_commenti(const char *testo) {
+    //Come tutte le altre funzioni utilizziamo l'allocazione dinamica della memoria. 
+    size_t len = strlen(testo);
+    char *result = malloc(len);
+    //Siccome non aggiungiamo mai nulla ma leviamo solo i commenti si avrà che, nel peggiore dei casi,
+    //result ha la stessa dimensione del testo originale (len)    
+
+    int in_comment_block = 0;   //flag che ci permette di capire se ci troviamo in un commento multiriga
+    size_t r = 0;               //indice per scorrere il testo iniziale (in lettura)
+    size_t w = 0;               //indice per scorrere il testo result (in scrittura)
+
+    //Iniziamo a scorrere per individuare i punti in cui iniziano i commenti. L'idea non è tanto di eliminare i commenti
+    //quanto più di "Ignorarli"; cioè NON copiarli nel risultato finale.
+    while (r < len) {
+        //Se troviamo "//" e non siamo in un commento multi-linea
+        if (testo[r] == '/' && testo[r+1] == '/' && !in_comment_block) {
+            while (r < len && testo[r] != '\n') {
+                r++;                                //avanziamo l'indice fino a fine linea (o fine testo)
+            }
+        }
+        //Se troviamo /* e non siamo in un commento multi-linea
+        else if (testo[r] == '/' && testo[r+1] == '*' && !in_comment_block) {
+            in_comment_block = 1;   //segnalo che da qui in poi siamo in un commento multilinea
+            r += 2;                 //e saltiamo i caratteri /*
+        }
+
+        //Se ci troviamo nel commento multilinea e troviamo */
+        else if (in_comment_block && testo[r] == '*' && testo[r+1] == '/') {
+            in_comment_block = 0;   //il commento multilinea è finito
+            r += 2;                 //e saltiamo i caratteri */
+        }
+        
+        //Se ci troviamo in un commento multilinea saltiamo il carattere corrente
+        else if (in_comment_block) {
+            r++; 
+        }
+        
+        //Se siamo arrivati qui non siamo all'interno di nessun commento e copiamo il testo così com'è
+        else {
+            result[w++] = testo[r++];
+        }
+    }
+
+    result[w] = '\0';   //inseriamo il terminatore di stringa
+    return result;
+}
 
 
 void fai_verbose(){

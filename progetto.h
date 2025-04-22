@@ -12,6 +12,7 @@ char* risolvi_includes(char *testo, char *input_dir);
 int conta_include(char *testo);
 char* safe_realloc(char* testo, size_t new_size);
 int scrivi(char *out_filename, char *testo);
+char *rimuovi_commenti(const char *testo);
 void fai_verbose();
 
 #endif
