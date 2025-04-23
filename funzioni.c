@@ -18,13 +18,16 @@ int fai_tutto(char *in_filename, char *out_filename){
     //ci prendiamo la directory in cui sono salvati tutti i file .h e .c da includere
     char *input_dir = prendi_nomedir(in_filename);
 
+    //inizializziamo la struct inclusi che mantiene i nomi dei file gia inclusi (per evitare include ciclici)
+    Inclusi *inclusi = inizializza_inclusi(in_filename);    //passiamo il path assoluto al file di input (in_filename) per evitare che venga incluso una 2a volta
+
     //finche ci sono include VALIDI nel testo li rimuoviamo
     while (conta_include(testo)>0){
         char *tmp = rimuovi_commenti(testo);        //per evitare di risolvere include commentati andiamo prima a rimuovere i commenti. Tuttavia rimuovi_commenti alloca nuova memoria
         free(testo);                                //e la assegniamo a testo. Questo significa che il valore precedente di testo non sarà più accessibile e dobbiamo liberarlo
 
-        testo = risolvi_includes(tmp, input_dir);   //tmp conterrà il testo aggiornato con gli include risolti
-        free(tmp);                                  //Analogo a prima. L'area di memoria puntata da tmp non sarà piu accessibile e quindi dobbiamo liberarla
+        testo = risolvi_includes(tmp, input_dir, inclusi);      //tmp conterrà il testo aggiornato con gli include risolti
+        free(tmp);                                              //Analogo a prima. L'area di memoria puntata da tmp non sarà piu accessibile e quindi dobbiamo liberarla
     }
 
     //rimuoviamo eventuali commenti introdotti con l'ultimo include (MIGLIORABILE)
@@ -99,7 +102,7 @@ char *prendi_nomedir(char *filename) {
 }
 
 //Risolve tutti gli include con "" presenti in testo
-char* risolvi_includes(char *testo, char *input_dir) {
+char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
     size_t lenResult = 1;                   //inizialmente vale solo 1 perche contiene solo il terminatore '\0'
     size_t write_pos = 0;                   //ci dice il prossimo punto in cui andremo a scrivere
     char *result = malloc(lenResult);       
@@ -130,36 +133,36 @@ char* risolvi_includes(char *testo, char *input_dir) {
             }
             
             if (*p == '"'){
-                //CASO 2: è un #include "filename". Apriamo il file e ne compia l'intero contenuto in result
-                char filename[1024];                    //conterrà il nome del file
-                int i = 0;                              //ci serve per scorrere filename
+                //CASO 2: è un #include "filename". Continuiamo a leggere per individuare il nome del file 
+                char filename[2048];                    //conterrà il nome del file
+                strcpy(filename, input_dir);            //inizializziamo filename con il percorso alla directory
+                int i = strlen(filename);               //ci posizioniamo alla fine e serve per scorrere filename
+                filename[i++] = '/';            
 
-                read_pos = p + 1;                       //salta la virgoletta iniziale (DA DE-COMMENTARE DOPO)
+                //aggiungiamo il nome del file al percorso della directory (per formare il path assoluto)
+                read_pos = p + 1;                       //salta la virgoletta iniziale 
                 while (*read_pos != '"') {
                     filename[i++] = *read_pos++;        //copia carattere per carattere il nome del file
                 }
                 read_pos++;                             //salta la virgoletta finale
-                filename[i] = '\0';                     
-                
-                //concateniamo input_dir e filename 
-                char fullpath[2048];
-                snprintf(fullpath, sizeof(fullpath), "%s/%s", input_dir, filename);
-                //NON possiamo usare strcat perche andrebbe a modificare direttamente dir_name, che invece va lasciata intatta 
-                //(poiche ci servirà per gli altri file da includere)
+                filename[i] = '\0';                     //termina il nome del file
 
-                //Apriamo il file e ne prendiamo il contenuto
-                char* included_content = leggi_da_filename(fullpath);   //prendiamo il contenuto del file da includere (il caso di fallimento è gia gestito in leggi())
-                size_t lenTesto = strlen(included_content);             //verifichiamo che ci sia abbastanza spazio per scrivere
+                //Se il file è gia stato incluso và ignorato per non rischiare include ciclici
+                if (gia_incluso(filename, inclusi) == 0){
+                    aggiungi(filename, inclusi);                            //lo aggiungiamo alla lista di file gia inclusi
+                    char* included_content = leggi_da_filename(filename);   //prendiamo il contenuto del file da includere (il caso di fallimento in apertura è gia gestito in leggi())
+                    size_t lenTesto = strlen(included_content);             //verifichiamo che ci sia abbastanza spazio per scrivere
 
-                size_t spazio_necessario = write_pos+lenTesto+1;        //dobbiamo scrivere: testo fino ad ora + testo dell'include + \0
-                while (spazio_necessario > lenResult) {
-                    lenResult *= 2;                                     //se non c'è spazio lo creiamo (aumentando esponenzialmente, come prima)
+                    size_t spazio_necessario = write_pos+lenTesto+1;        //dobbiamo scrivere: testo fino ad ora + testo dell'include + \0
+                    while (spazio_necessario > lenResult) {
+                        lenResult *= 2;                                     //se non c'è spazio lo creiamo (aumentando esponenzialmente, come prima)
+                    }
+                    result = safe_realloc(result, lenResult);
+                    memcpy(result + write_pos, included_content, lenTesto); //aggiungiamo il contenuto a result
+                    write_pos += lenTesto;                                  //spostiamo il prossimo punto in cui scrivere
+                    result[write_pos] = '\0';                               //inseriamo il terminatore di stringa
+                    free(included_content);                                 //liberiamo lo spazio di included_content poiche abbiamo copiato in result    
                 }
-                result = safe_realloc(result, lenResult);
-                memcpy(result + write_pos, included_content, lenTesto); //aggiungiamo il contenuto a result
-                write_pos += lenTesto;                                  //spostiamo il prossimo punto in cui scrivere
-                result[write_pos] = '\0';                               //inseriamo il terminatore di stringa
-                free(included_content);                                 //liberiamo lo spazio di included_content poiche abbiamo copiato in result   
 
             } else {
                 //CASO 3: è un #include <filename>. Copiamo il primo carattere e leggiamo il prossimo carattere
@@ -170,12 +173,46 @@ char* risolvi_includes(char *testo, char *input_dir) {
                 result[write_pos++] = *read_pos;            //aggiungiamo il carattere in penultima posizione
                 result[write_pos] = '\0';                   //aggiungiamo \0 in ultima posizione (senza strcat dobbiamo farlo manualmente noi)
                 read_pos++;                                 //andiamo a leggere il char successivo
-            }      
+            }     
         }
     }
     
     return result;
 }
+
+Inclusi *inizializza_inclusi(char *in_filename) {
+    Inclusi *inclusi = malloc(sizeof(Inclusi));
+    inclusi->files = malloc(10 * sizeof(char *));   //inizializziamo files come array di 10 stringhe
+    inclusi->len = 0;                               //inizialmente contiene 0 elementi
+    inclusi->capacity = 10;                         //ed ha capacità massima 10 elementi
+
+    //Aggiungiamo subito il file iniziale ad inclusi, per evitare che venga incluso una 2a volta
+    aggiungi(in_filename, inclusi);
+
+    return inclusi; 
+}
+
+void aggiungi(char *filename, Inclusi *inclusi) {
+    //controlliamo se c'è bisogno di allocare altro spazio. ventulmente aumentiamo la capacita esponenzialmente (maggiore efficienza)
+    if (inclusi->len >= inclusi->capacity) {
+        inclusi->capacity *= 2;            
+        inclusi->files = safe_realloc(inclusi->files, inclusi->capacity * sizeof(char *));
+    }
+
+    int i = inclusi->len++;                 //aumentiamo la lunghezza dell'array
+    inclusi->files[i] = strdup(filename);   //aggiungiamo il filename all'array
+}
+
+//Controlla se un file è gia stato incluso (cioè se è presente nell'array inclusi).
+int gia_incluso(char *filename, Inclusi *inclusi) {
+    for (int i = 0; i < inclusi->len; i++) {
+        if (strcmp(inclusi->files[i], filename) == 0) {
+            return 1;                       //stringa trovata
+        }
+    }
+    return 0;                               //stringa non trovata
+}
+
 
 //Conta il numero di include VALIDI ancora da risolvere
 int conta_include(char *testo) {
@@ -197,8 +234,9 @@ int conta_include(char *testo) {
 }
 
 //effettua comunque un realloc ma gestendo meglio i casi in cui realloc fallisca
-char* safe_realloc(char* testo, size_t new_size) {
-    char* tmp = realloc(testo, new_size);
+//Edit: meglio prendere un puntatore generico void come parametro. Almeno possiamo gestire qualsiasi riallocazione e non solo stringhe
+void* safe_realloc(void *testo, size_t new_size) {
+    void* tmp = realloc(testo, new_size);
     if (!tmp) {
         free(testo);
         return NULL;
@@ -237,7 +275,7 @@ int scrivi(char *out_filename, char *testo) {
 
 
 //Rimuove TUTTI i commenti dal testo
-char *rimuovi_commenti(const char *testo) {
+char *rimuovi_commenti(char *testo) {
     //Come tutte le altre funzioni utilizziamo l'allocazione dinamica della memoria. 
     size_t len = strlen(testo);
     char *result = malloc(len);
