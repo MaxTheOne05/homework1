@@ -14,9 +14,7 @@ int main(int argc, char *argv[]){
 	bool verbose = false;			
 
 	//leggiamo gli argomenti in argv e impostiamo  
-	printf("\n\nGli argomenti letti sono:\n");
 	for (int i=1; i<argc; i++){
-		printf("%s\n", argv[i]);
 		if (strcmp(argv[i], "-i") == 0 || strcmp(argv[i], "--in") == 0){
 			in_filename = argv[i+1];
 			
@@ -27,8 +25,6 @@ int main(int argc, char *argv[]){
 			verbose = true;
 		}
 	}
-
-	printf("\n\n\n");
 	
 	if (in_filename == NULL){
 		fprintf(stderr, "Errore! Inserire il file input.\n");

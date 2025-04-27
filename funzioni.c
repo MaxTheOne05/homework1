@@ -147,7 +147,7 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
                 read_pos++;                             //salta la virgoletta finale
                 filename[i] = '\0';                     //termina il nome del file
 
-                //Se il file è gia stato incluso và ignorato per non rischiare include ciclici
+                //Se il file è gia stato incluso và ignorato per evitare include ciclici
                 if (gia_incluso(filename, inclusi) == 0){
                     aggiungi(filename, inclusi);                            //lo aggiungiamo alla lista di file gia inclusi
                     char* included_content = leggi_da_filename(filename);   //prendiamo il contenuto del file da includere (il caso di fallimento in apertura è gia gestito in leggi())
@@ -164,19 +164,38 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
                     free(included_content);                                 //liberiamo lo spazio di included_content poiche abbiamo copiato in result    
                 }
 
-            } else {
-                //CASO 2.2: è un #include <filename>. Copiamo il primo carattere e leggiamo il prossimo carattere
-                if (write_pos + 1 > lenResult) {            //se non c'è abbastanza spazio per aggiungere un nuovo char
-                    lenResult *= 2;                         //aumentiamo lo spazio allocato esponenzialmente (per maggior efficienza)
-                    result = safe_realloc(result, lenResult);
-                }      
-                result[write_pos++] = *read_pos;            //aggiungiamo il carattere in penultima posizione
-                result[write_pos] = '\0';                   //aggiungiamo \0 in ultima posizione (senza strcat dobbiamo farlo manualmente noi)
-                read_pos++;                                 //andiamo a leggere il char successivo
-            }     
+            } else if (*p == '<') {
+                //CASO 2.2: è un #include <filename>. Andiamo ad estrarre il filename e lo aggiungiamo ad inclusi SENZA però risolverlo.
+                //In questo modo evitiamo di avere piu #include <filename> duplicati (es. avremo un unico #include <stdio.h> alla fine)
+                char filename[2048];     //conterrà il nome del file
+                int i = 0;               //ci serve per scorrere filename
+
+                read_pos = p + 1;                       //salta la < iniziale 
+                while (*read_pos != '>') {
+                    filename[i++] = *read_pos++;        //copia carattere per carattere il nome del file
+                }
+                read_pos++;                             //salta la > finale
+                filename[i] = '\0';                     //termina il nome del file 
+
+                if (!gia_incluso(filename, inclusi)) {
+                    aggiungi(filename, inclusi);
+                    
+                    int len = snprintf(NULL, 0, "#include <%s>\n", filename);   //calcola quanto spazio servirebbe per stampare la stringa #include <filename>\n, senza effettivamente stamparla.
+                    char *temp = malloc(len + 1);                               //creiamo un'area di memoria abbastanza grande da contenere la stringa + '\0'
+                    snprintf(temp, len + 1, "#include <%s>\n", filename);       //inserisce la stringa #include <filename>\n nell'area di memoria puntata da temp
+
+                    size_t spazio_necessario = write_pos+len+1;         //dobbiamo scrivere: testo fino ad ora + #include<filename> + \0
+                    while (spazio_necessario > lenResult) {
+                        lenResult *= 2;                                 //se non c'è spazio lo creiamo (aumentando esponenzialmente, come prima)
+                        result = safe_realloc(result, lenResult);
+                    }
+                    memcpy(result + write_pos, temp, len);          //aggiungiamo il contenuto a result          
+                    write_pos += len;                               //spostiamo il prossimo punto in cui scrivere
+                    result[write_pos] = '\0';                       //inseriamo il terminatore di stringa
+                }
+            }
         }
     }
-    
     return result;
 }
 
