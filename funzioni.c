@@ -79,9 +79,9 @@ char *leggi(FILE *fi){
     char riga[2048];
     while (fgets(riga, sizeof(riga), fi) != NULL) {
         size_t lenRiga = strlen(riga);
-        testo = safe_realloc(testo, lenTesto + lenRiga); //aumentiamo lo spazio allocato
-        strcat(testo, riga);                            //e concateniamo la riga alla fine di testo.
-        lenTesto += lenRiga;                            //aumentiamo la lunghezza del testo
+        testo = safe_realloc(testo, lenTesto + lenRiga);    //aumentiamo lo spazio allocato
+        strcat(testo, riga);                                //e concateniamo la riga alla fine di testo.
+        lenTesto += lenRiga;                                //aumentiamo la lunghezza del testo
 
         //Gestiamo l'eventuale caso in cui realloc dovesse fallire liberando la memoria e ritornando NULL (errore)
         if (testo == NULL){
@@ -126,14 +126,14 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
 
         } else {
 
-            //Andiamo cercare "" oppure <>
+            //CASO 2: è un #include. Andiamo cercare "" oppure <>
             char *p = read_pos + 8;     //saltiamo la parola #include
             while (isspace(*p)){        //saltiamo tutti gli spazi
                 p++;                            
             }
             
             if (*p == '"'){
-                //CASO 2: è un #include "filename". Continuiamo a leggere per individuare il nome del file 
+                //CASO 2.1: è un #include "filename". Continuiamo a leggere per individuare il nome del file 
                 char filename[2048];                    //conterrà il nome del file
                 strcpy(filename, input_dir);            //inizializziamo filename con il percorso alla directory
                 int i = strlen(filename);               //ci posizioniamo alla fine e serve per scorrere filename
@@ -165,7 +165,7 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
                 }
 
             } else {
-                //CASO 3: è un #include <filename>. Copiamo il primo carattere e leggiamo il prossimo carattere
+                //CASO 2.2: è un #include <filename>. Copiamo il primo carattere e leggiamo il prossimo carattere
                 if (write_pos + 1 > lenResult) {            //se non c'è abbastanza spazio per aggiungere un nuovo char
                     lenResult *= 2;                         //aumentiamo lo spazio allocato esponenzialmente (per maggior efficienza)
                     result = safe_realloc(result, lenResult);

@@ -4,27 +4,9 @@
 #include <ctype.h>    // Per verifiche su caratteri (es. isdigit)
 #include <stdbool.h>
 
-// (Nome file in cui si verifica l'errore, Linea dell'errore)
-typedef struct {
-    char* file;
-    int line;
-} ErrorInfo;
+#include "progetto.h"
+#include "funzioni.c"
 
-// (Lista di stringhe, Numero di elementi)
-typedef struct {
-    char** string_list;
-    size_t len;
-} StringSplit;
-
-
-typedef struct {
-    int variables_num;
-    int errors_num;
-    ErrorInfo* errors;
-} VarInfo;
-
-
-#define NUM_KEYWORDS (sizeof(c_keywords) / sizeof(c_keywords[0]))
 
 // Lista di parole chiave standard (C11/C17)
 static const char *c_keywords[] = {
@@ -36,10 +18,10 @@ static const char *c_keywords[] = {
     "_Alignas", "_Alignof", "_Atomic", "_Generic", "_Noreturn",
     "_Static_assert", "_Thread_local"
 };
+#define NUM_KEYWORDS (sizeof(c_keywords) / sizeof(c_keywords[0]))   //numero di elementi presenti nell'array c_keywords
 
-#define NUM_C_TYPES (sizeof(c_types) / sizeof(c_types[0]))
 
-// Lista dei tipi principali c
+//Lista dei tipi principali c
 static const char *c_types[] = {
     // Tipi fondamentali
     "char", "short", "int", "long", "float", "double", 
@@ -51,78 +33,29 @@ static const char *c_types[] = {
     // Tipi derivati (che possono essere usati in dichiarazioni)
     "struct", "union", "enum", "typedef",
 };
+#define NUM_C_TYPES (sizeof(c_types) / sizeof(c_types[0]))          //numero di elementi presenti nell'array c_types
 
 
-// Funzione che effettua una realloc gestendo meglio i casi in cui realloc fallisce
-char* safe_realloc(char* ptr, size_t new_size) {
-    char* tmp = realloc(ptr, new_size);
-    if (!tmp) {
-        free(ptr);
-        return NULL;
-    }
-    return tmp;
-}
-
-// Funzione che legge il contenuto di un file
-char *leggi(FILE *fi){
-    //inizialmente leggiamo tutto il testo in input. Ignorando la risoluzione di include e rimozione commenti.
-    //(quello lo faremo piu avanti e salveremo il risultato in un'altra stringa)
-    
-    size_t lenTesto = 1;                //lunghezza "dinamica" del file in input. Partiamo da 1 per includere '\0'
-    char *testo = malloc(lenTesto);     //iniziamo a creare la stringa dinamica.  
-    testo[0] = '\0';                    //Inizialmente ha solo il terminatore di stringa. Serve principalmente a strstr 
-                                        //per capire dove concatenare la riga
-
-    //fgets legge una riga di fi e la inserisce dentro "riga"
-    char riga[2048];
-    while (fgets(riga, sizeof(riga), fi) != NULL) {
-        size_t lenRiga = strlen(riga);
-        testo = safe_realloc(testo, lenTesto + lenRiga); //aumentiamo lo spazio allocato
-        strcat(testo, riga);                            //e concateniamo la riga alla fine di testo.
-        lenTesto += lenRiga;                            //aumentiamo la lunghezza del testo
-
-        //Gestiamo l'eventuale caso in cui realloc dovesse fallire liberando la memoria e ritornando NULL (errore)
-        if (testo == NULL){
-            free(testo);
-            return NULL;
-        }
-    }
-
-    return testo;
-}
-
-// Funzione che dato il nome di un file lo apre, richiama la funzione leggi e ne restituisce il contenuto letto
-char *leggi_da_filename(const char *filename){
-    FILE *f = fopen(filename, "r");
-    if (f == NULL) {
-        fprintf(stderr, "<leggi_da_filename>: Errore apertura file: %s\n", filename);
-		exit(1);
-    }
-    char* testo = leggi(f);
-    fclose(f);
-    return testo;
-}
-
-// Funzione per controllare se la parola corrente è un identificatore di variabile valido
+//Controlla se la "name" è un identificatore di variabile valido
 bool is_valid_c_identifier(const char *name) {
     // Controllo lunghezza minima (almeno 1 carattere)
     if (name == NULL || name[0] == '\0') {
         return false;
     }
 
-    // Controllo primo carattere: deve essere lettera o underscore
-    if (!isalpha(name[0]) && name[0] != '_') {
-        return false;
+    //controllo il primo carattere
+    if (!isalpha(name[0]) && name[0] != '_') {      //se il primo carattere non è una lettera o underscore (es. inizia con un numero)
+        return false;                               //NON puo essere un nome valido
     }
 
-    // Controllo caratteri successivi
+    //controllo caratteri successivi
     for (size_t i = 1; name[i] != '\0'; i++) {
-        if (!isalnum(name[i]) && name[i] != '_') {
-            return false;
+        if (!isalnum(name[i]) && name[i] != '_') {  //se i prossimi caratteri non sono alfanumeri o underscore 
+            return false;                           //NON puo essere un nome valido
         }
     }
 
-    // Controllo che non sia una parola chiave
+    //controllo che non sia una parola chiave riservata in c
     for (size_t i = 0; i < NUM_KEYWORDS; i++) {
         if (strcmp(name, c_keywords[i]) == 0) {
             return false;
@@ -132,8 +65,9 @@ bool is_valid_c_identifier(const char *name) {
     return true;
 }
 
-// Funzione per controllare se la parola corrente è un tipo c
+//Controlla se "word" è un tipo di dato
 bool is_data_type(const char *word) {
+
     for (int i = 0; i < NUM_C_TYPES; i++) {
         if (strcmp(word, c_types[i]) == 0) {
             return true;
@@ -142,114 +76,92 @@ bool is_data_type(const char *word) {
     return false;
 }
 
-// Rimuove le assegnazioni da una riga dove sono state dichiarate variabili
+//Rimuove le assegnazioni da una riga dove sono state dichiarate variabili
 char* remove_assignments(const char *line) {
     if (line == NULL) return NULL;
     
-    size_t length = strlen(line);
-    char* new_line = malloc(length + 1);
-    if (new_line == NULL) {
-        return NULL;
-    }
+    size_t length = strlen(line);           //prendiamo la lunghezza della riga
+    char* new_line = malloc(length + 1);    //e allochiamo spazio per una stringa dinamica (+1 per il terminatore \0)
     
-    bool is_assignment = false;
-    bool in_quotes = false;
-    size_t new_i = 0;
+    bool is_assignment = false;             //ci dice se siamo dopo un = (cioè in una parte da ignorare)
+    bool in_quotes = false;                 //ci dice se siamo dentro delle virgolette (altra parte da ignorare)
+    int j = 0;                              //indice per la nuova stringa
 
-    for (size_t i = 0; i < length; i++) {
-        // Gestione delle virgolette
-        if (line[i] == '"' && (i == 0 || line[i-1] != '\\')) {
-            in_quotes = !in_quotes;
+    for (int i = 0; i<length; i++) {
+        
+        //Se ci troviamo tra virgolette..
+        if (line[i] == '"' && (i == 0 || line[i-1] != '\\')) {  //Ogni volta che troviamo una virgoletta che non è preceduta da "\"
+            in_quotes = !in_quotes;                             //entriamo o usciamo da una stringa
         }
         
-        if (!in_quotes) {
-            if (line[i] == '=' && !is_assignment) {
-                // Controlla che non sia ==
-                if (i == 0 || line[i-1] != '=') {
-                    if (i == length-1 || line[i+1] != '=') {
-                        is_assignment = true;
-                        continue;
-                    }
+        //Se non ci troviamo tra virgolette..
+        if (!in_quotes){
+            //..non siamo in un assegnamento e troviamo un "="  
+            if (!is_assignment && line[i] == '=') {   
+                //..e questo NON è un "=="      
+                if ((i == 0 || line[i-1] != '=') && (i == length-1 || line[i+1] != '=')) {
+                    //allora siamo in un assegnamento
+                    is_assignment = true;
+                    continue;
                 }
             }
             
+            //quando troviamo una virgola o punto e virgola, vuol dire che l’assegnazione è finita
             if (line[i] == ',' || line[i] == ';') {
                 is_assignment = false;
             }
         }
         
-        if (!is_assignment) {
-            new_line[new_i++] = line[i];
+        if (!is_assignment) {           //se NON siamo in un assegnamento
+            new_line[j++] = line[i];    //copiamo il carattere
         }
     }
-    
-    new_line[new_i] = '\0'; // Terminatore nullo
-    
-    // Riduci la memoria allocata alla dimensione effettiva
-    char* tmp = realloc(new_line, new_i + 1);
-    if (tmp != NULL) {
-        new_line = tmp;
-    }
+    new_line[j] = '\0';                 //aggiugniamo il terminatore di stringa
     
     return new_line;
 }
 
-
+//Dato un testo restituisce un array di stringhe, in cui ogni elemento è una riga del testo originale
 StringSplit split_into_lines(const char* text) {
-    StringSplit result = {NULL, 0};
+    //Inizializziamo la struttura StringSplit (definita in progetto.h) che andremo restituire
+    StringSplit result;         //creiamo un istanza della struct
+    result.string_list = NULL;  //inizialmente non abbiamo nessuna riga
+    result.len = 0;             //e quindi la lunghezza dell'array è 0
+        
+    //Alloca spazio per le righe. Iniziamo con 1024, se poi non dovesse bastare facciamo realloc
+    size_t capacity = 1024;
+    char** lines = malloc(capacity * sizeof(char*));
     
-    if (!text) return result;
-
-    // Calcola dimensione massima (1 riga per carattere nel caso peggiore)
-    size_t max_possible_lines = strlen(text) + 1;
+    char* current = text;       //serve per scorrere il testo 
+    char* line_start = text;    //punta all'inizio di una riga
+    int line_count = 0;         //mantiene il numero di righe trovate
     
-    // Alloca spazio per le righe
-    char** lines = malloc(max_possible_lines * sizeof(char*));
-    if (!lines) return result;
-    
-    int line_count = 0;
-    char* copy = strdup(text);
-    if (!copy) {
-        free(lines);
-        return result;
-    }
-
-    char* current = copy;
-    char* line_start = copy;
-    
+    //finche non arriviamo a fine testo
     while (*current) {
-        if (*current == '\n') {
-            // Calcola la lunghezza della riga corrente
-            size_t line_length = current - line_start;
+        current = strstr(current, "\n");            //trova il primo \n del testo da current in poi (serve per capire dove finisce la riga)
+        size_t line_length = current - line_start;  //ora possiamo calcolare la lunghezza della riga
+   
+        char* line = malloc(line_length + 1);       //allochiamo spazio per la riga + terminatore '\0'
+        strncpy(line, line_start, line_length);     //e ci copiamo la riga
+        line[line_length] = '\0';                   //+ terminatore
             
-            // Alloca spazio per la riga (includendo il terminatore nullo)
-            char* line = malloc(line_length + 1);
-            if (!line) {
-                // In caso di errore, libera la memoria allocata finora
-                for (int i = 0; i < line_count; i++) free(lines[i]);
-                free(lines);
-                free(copy);
-                return result;
-            }
+        //Rimuoviamo \r se presente (per compatibilità Windows)
+        if (line_length > 0 && line[line_length-1] == '\r') {
+            line[line_length-1] = '\0';
+        }
+
+        //se non c'è abbastanza spazio
+        if (line_count >= capacity) {
+            capacity *= 2;                                                      //aumentiamo lo spazio allocato esponenzialmente (per maggior efficienza)
+            char** lines = safe_realloc(lines, capacity * sizeof(char*));       //reallochiamo la memoria
             
-            // Copia la riga
-            strncpy(line, line_start, line_length);
-            line[line_length] = '\0';
-            
-            // Rimuove \r finale se presente (per compatibilità Windows)
-            if (line_length > 0 && line[line_length-1] == '\r') {
-                line[line_length-1] = '\0';
-            }
-            
-            lines[line_count++] = line;
-            
-            // Sposta il puntatore all'inizio della prossima riga
-            line_start = current + 1;
+            lines[line_count++] = line;     //Inseriamo la riga nell'array
+            line_start = current + 1;       //Sposta il puntatore all'inizio della prossima riga
         }
         current++;
     }
     
-    // Aggiungi l'ultima riga se non termina con \n
+    //Gestiamo l'ultima riga, siccome potrebbe non terminare con \n. 
     if (line_start < current) {
         size_t line_length = current - line_start;
         char* line = malloc(line_length + 1);
@@ -264,28 +176,6 @@ StringSplit split_into_lines(const char* text) {
             
             lines[line_count++] = line;
         }
-    }
-    
-    // Aggiungi stringhe vuote per ogni \n extra alla fine
-    if (copy && strlen(copy) > 0 && text[strlen(text)-1] == '\n') {
-        char* last_char = copy + strlen(copy) - 1;
-        while (last_char >= copy && *last_char == '\n') {
-            char* empty = strdup("");
-            if (empty) {
-                lines[line_count++] = empty;
-                last_char--;
-            } else {
-                break;
-            }
-        }
-    }
-    
-    free(copy);
-    
-    // Ridimensiona l'array al numero effettivo di righe
-    char** tmp = realloc(lines, line_count * sizeof(char*));
-    if (tmp || line_count == 0) {
-        lines = tmp;
     }
     
     result.string_list = lines;
