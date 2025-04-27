@@ -7,6 +7,8 @@
 #include <ctype.h>
 #include <libgen.h>
 
+char *debug;  //var globale per test
+
 int fai_tutto(char *in_filename, char *out_filename){
 
     //apriamo direttamente in_filename perche possiamo assumere che sia nella CWD
@@ -36,7 +38,12 @@ int fai_tutto(char *in_filename, char *out_filename){
     testo = tmp;
     
     //scriviamo il risultato nel file di output o nello stdout
+    printf("result vale:\n");
     scrivi(out_filename, testo);
+
+    //DA CANCELLARE
+    printf("le cose scritte dopo il primo #include <> sono: ");
+    printf("%s\n", debug); // Stampa tutta la stringa a partire da debug
     
     //liberiamo lo spazio allocato e ritorniamo 0 (esecuzione terminata correttamente)
     free(testo);
@@ -189,9 +196,11 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
                         lenResult *= 2;                                 //se non c'è spazio lo creiamo (aumentando esponenzialmente, come prima)
                         result = safe_realloc(result, lenResult);
                     }
-                    memcpy(result + write_pos, temp, len);          //aggiungiamo il contenuto a result          
+                    memcpy(result + write_pos, temp, len);          //aggiungiamo il contenuto a result    
+                    debug = result + write_pos;      
                     write_pos += len;                               //spostiamo il prossimo punto in cui scrivere
                     result[write_pos] = '\0';                       //inseriamo il terminatore di stringa
+                    free(temp);
                 }
             }
         }
