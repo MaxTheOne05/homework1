@@ -7,7 +7,6 @@
 #include <ctype.h>
 #include <libgen.h>
 
-char *debug;  //var globale per test
 
 int fai_tutto(char *in_filename, char *out_filename){
 
@@ -38,12 +37,7 @@ int fai_tutto(char *in_filename, char *out_filename){
     testo = tmp;
     
     //scriviamo il risultato nel file di output o nello stdout
-    printf("result vale:\n");
     scrivi(out_filename, testo);
-
-    //DA CANCELLARE
-    printf("le cose scritte dopo il primo #include <> sono: ");
-    printf("%s\n", debug); // Stampa tutta la stringa a partire da debug
     
     //liberiamo lo spazio allocato e ritorniamo 0 (esecuzione terminata correttamente)
     free(testo);
@@ -110,6 +104,12 @@ char *prendi_nomedir(char *filename) {
 
 //Risolve tutti gli include con "" presenti in testo
 char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
+
+    Inclusi *inclusi2 = inizializza_inclusi("");    //esclusivamente per gli include con <>. 
+    /*Siccome ogni volta restituiamo un nuovo testo (e NON modifichiamo quello prima), utilizzando lo stesso inclusi "globale" succedeva che un include <stdio.h>
+      viene copiato solo alla prima invocazione della funzione. In tutte le successive invocazioni <stdio.h> è gia presente in inclusi e quindi verrà ignorato.
+      Per risolvere il problema è sufficiente creare un inclusi2 "locale" che si resetta ad ogni invocazione. */
+
     size_t lenResult = 1;                   //inizialmente vale solo 1 perche contiene solo il terminatore '\0'
     size_t write_pos = 0;                   //ci dice il prossimo punto in cui andremo a scrivere
     char *result = malloc(lenResult);       
@@ -173,7 +173,7 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
 
             } else if (*p == '<') {
                 //CASO 2.2: è un #include <filename>. Andiamo ad estrarre il filename e lo aggiungiamo ad inclusi SENZA però risolverlo.
-                //In questo modo evitiamo di avere piu #include <filename> duplicati (es. avremo un unico #include <stdio.h> alla fine)
+                //In questo modo evitiamo di avere piu #include <filename> duplicati (es. avremo un unico #include <stdio.h> nel file finale)
                 char filename[2048];     //conterrà il nome del file
                 int i = 0;               //ci serve per scorrere filename
 
@@ -184,8 +184,8 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
                 read_pos++;                             //salta la > finale
                 filename[i] = '\0';                     //termina il nome del file 
 
-                if (!gia_incluso(filename, inclusi)) {
-                    aggiungi(filename, inclusi);
+                if (!gia_incluso(filename, inclusi2)) {
+                    aggiungi(filename, inclusi2);
                     
                     int len = snprintf(NULL, 0, "#include <%s>\n", filename);   //calcola quanto spazio servirebbe per stampare la stringa #include <filename>\n, senza effettivamente stamparla.
                     char *temp = malloc(len + 1);                               //creiamo un'area di memoria abbastanza grande da contenere la stringa + '\0'
@@ -197,7 +197,6 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
                         result = safe_realloc(result, lenResult);
                     }
                     memcpy(result + write_pos, temp, len);          //aggiungiamo il contenuto a result    
-                    debug = result + write_pos;      
                     write_pos += len;                               //spostiamo il prossimo punto in cui scrivere
                     result[write_pos] = '\0';                       //inseriamo il terminatore di stringa
                     free(temp);
