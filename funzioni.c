@@ -7,6 +7,7 @@
 #include <ctype.h>
 #include <libgen.h>
 
+int righe_con_commento = 0;
 
 int fai_tutto(char *in_filename, char *out_filename){
 
@@ -38,6 +39,8 @@ int fai_tutto(char *in_filename, char *out_filename){
     
     //scriviamo il risultato nel file di output o nello stdout
     scrivi(out_filename, testo);
+
+    printf("<debug>: Righe di commenti rimosse: %i\n", righe_con_commento);
     
     //liberiamo lo spazio allocato e ritorniamo 0 (esecuzione terminata correttamente)
     free(testo);
@@ -300,52 +303,55 @@ int scrivi(char *out_filename, char *testo) {
     return 0;
 }
 
-
-//Rimuove TUTTI i commenti dal testo
+//Rimuove TUTTI i commenti da un testo
 char *rimuovi_commenti(char *testo) {
     //Come tutte le altre funzioni utilizziamo l'allocazione dinamica della memoria. 
     size_t len = strlen(testo);
-    char *result = malloc(len);
+    char *result = malloc(len+1);  
     //Siccome non aggiungiamo mai nulla ma leviamo solo i commenti si avrà che, nel peggiore dei casi,
-    //result ha la stessa dimensione del testo originale (len)    
+    //result ha la stessa dimensione del testo originale (len) + 1 per il terminatore    
 
-    int in_comment_block = 0;   //flag che ci permette di capire se ci troviamo in un commento multiriga
     size_t r = 0;               //indice per scorrere il testo iniziale (in lettura)
     size_t w = 0;               //indice per scorrere il testo result (in scrittura)
 
     //Iniziamo a scorrere per individuare i punti in cui iniziano i commenti. L'idea non è tanto di eliminare i commenti
     //quanto più di "Ignorarli"; cioè NON copiarli nel risultato finale.
     while (r < len) {
-        //Se troviamo "//" e non siamo in un commento multi-linea
-        if (testo[r] == '/' && testo[r+1] == '/' && !in_comment_block) {
-            while (r < len && testo[r] != '\n') {
-                r++;                                //avanziamo l'indice fino a fine linea (o fine testo)
-            }
-        }
-        //Se troviamo /* e non siamo in un commento multi-linea
-        else if (testo[r] == '/' && testo[r+1] == '*' && !in_comment_block) {
-            in_comment_block = 1;   //segnalo che da qui in poi siamo in un commento multilinea
-            r += 2;                 //e saltiamo i caratteri /*
-        }
 
-        //Se ci troviamo nel commento multilinea e troviamo */
-        else if (in_comment_block && testo[r] == '*' && testo[r+1] == '/') {
-            in_comment_block = 0;   //il commento multilinea è finito
-            r += 2;                 //e saltiamo i caratteri */
-        }
-        
-        //Se ci troviamo in un commento multilinea saltiamo il carattere corrente
-        else if (in_comment_block) {
-            r++; 
-        }
-        
-        //Se siamo arrivati qui non siamo all'interno di nessun commento e copiamo il testo così com'è
+        //Gestiamo il caso in cui ci siano "commenti" all'interno della dichiarazione di una stringa
+        if (testo[r] == '\"') {
+            result[w++] = testo[r++];                                       //scriviamo la virgoletta iniziale
+            while (r < len && testo[r] != '\"' && testo[r-1] != '\\') {     //andiamo a cercare la virgoletta di chiusura, ignorando quelle con backslash davanti
+                result[w++] = testo[r++];                                   //scriviamo tutto fino a fine stringa
+            }
+            result[w++] = testo[r++];                                       //scriviamo la virgoletta finale
+        } 
+
+        //Se troviamo "//" è l'inizio di un commento su singola linea
+        else if (testo[r] == '/' && testo[r+1] == '/') {
+            while (r < len && testo[r] != '\n') r++;            //ignoriamo tutto fino a fine riga
+            righe_con_commento++;                               //incremento il contatore delle righe con commenti
+        } 
+
+        //Se troviamo "/*" è l'inizio di un commento multi-linea
+        else if (testo[r] == '/' && testo[r+1] == '*') {
+            
+            righe_con_commento++;                                           //la riga attuale contiene un commento (anche se contenesse solo /*)
+            r += 2;                                                         //saltiamo /* iniziale
+            while (r + 1 < len && !(testo[r] == '*' && testo[r+1] == '/')){ 
+                if (testo[r] == '\n') righe_con_commento++;                 //ogni nuova riga che incontriamo è all'interno del commento multilinea. Quindi è una riga con commenti
+                r++;                                                        //ignoriamo tutto il testo fino a fine commento
+            }
+            if (r+1 < len) r += 2;                                          //saltiamo */ finale
+        } 
+
+        //Se siamo rrivati qui significa che non siamo in nessun commento
         else {
-            result[w++] = testo[r++];
+            result[w++] = testo[r++];       //copiamo il testo cosi com'è
         }
     }
 
-    result[w] = '\0';   //inseriamo il terminatore di stringa
+    result[w] = '\0';
     return result;
 }
 
