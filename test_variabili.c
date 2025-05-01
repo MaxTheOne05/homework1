@@ -1,4 +1,4 @@
-int   global_var,   1bad_global;   // 1 non corretta (1bad_global)
+int   global_var[5][9],   1bad_global;   // 1 non corretta (1bad_global)
 float temp,   valid_float;         // Tutte corrette
 
 int main() {
