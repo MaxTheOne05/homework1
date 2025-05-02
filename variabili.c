@@ -9,6 +9,11 @@
 #include "funzioni.c"
 
 
+// Tipi per strutture, unioni ed enumerazioni (introducono nuovi tipi composti)
+// "struct",
+// "union",
+// "enum",
+
 
 // Parole chiave per i tipi di dato standard in C e typedef comuni dalle librerie standard
 const char *c_data_types[] = {
@@ -22,10 +27,7 @@ const char *c_data_types[] = {
     "double",   // Numero in virgola mobile doppia precisione
     "_Bool",    // Parola chiave nativa per il tipo booleano (standard C99+)
     "bool",     // Typedef comune per _Bool (da <stdbool.h>, standard C99+)
-    // Tipi per strutture, unioni ed enumerazioni (introducono nuovi tipi composti)
-    "struct",
-    "union",
-    "enum",
+    
     // _Complex e _Imaginary (per numeri complessi/immaginari, standard C99+)
     // "_Complex", // Meno comuni per liste base
     // "_Imaginary" // Meno comuni per liste base
@@ -126,17 +128,31 @@ const char *c_reserved_keywords[] = {
     "_Thread_local",
 };
 
+// Parole chiave che mi permettono di capire che la riga corrente non contiene una dichiarazione di variabili
+const char *keywords_to_skip[] = {
+    "struct",
+    "union",
+    "enum",
+    "typedef",
+    "return",
+    "for",
+    "while",
+    "if",
+    "else",
+    "do",
+};
+
 // Dimensioni degli array
 const size_t num_c_data_types = sizeof(c_data_types) / sizeof(c_data_types[0]);
 const size_t num_c_type_modifiers = sizeof(c_type_modifiers) / sizeof(c_type_modifiers[0]);
 const size_t num_c_reserved_keywords = sizeof(c_reserved_keywords) / sizeof(c_reserved_keywords[0]);
-
+const size_t num_keywords_to_skip = sizeof(keywords_to_skip) / sizeof(keywords_to_skip[0]);
 
 
 
 
 // Funzione per dividere una stringa in base a delimitatori
-StringSplit split_string(const char *input, const char *separators, bool keep_empty) {
+StringSplit split_string(const char *input, const char *separators, bool keep_empty, bool keep_separator) {
     StringSplit result = {NULL, 0}; // inizializzazione vuota
 
     if (!input || !separators) {
@@ -175,7 +191,12 @@ StringSplit split_string(const char *input, const char *separators, bool keep_em
                 }
                 result.string_list = temp;
             }
+
             size_t length = token - start;
+            if (keep_separator) {
+                length++; // Include il separatore
+            }
+
             result.string_list[result.len] = strndup(start, length);
             result.len++;
         }
@@ -218,23 +239,36 @@ void free_string_split(StringSplit split) {
 
 
 
-// Furnzione per aggiungere un errore all'array di errori
+// Revised add_error function (safer allocation and counting)
 void add_error(ErrorInfo** array, int* count, const char* filename, int line) {
-    ErrorInfo* temp = safe_realloc(*array, (*count + 1) * sizeof(ErrorInfo));
-    if (temp == NULL) {
-        perror("Errore nel realloc");
-        return;
+    // 1. Allocate memory for the filename string first
+    char* filename_copy = strdup(filename);
+    if (filename_copy == NULL) {
+        perror("Errore in strdup per l'errore filename");
+        // Consider more robust error handling here if needed
+        return; // Cannot add error without filename
     }
-    *array = temp;
 
-    // Aggiungi il nuovo elemento
-    (*array)[*count].file = strdup(filename);
-    if ((*array)[*count].file == NULL) {
-        perror("Errore in strdup");
-        return;
+    // Calculate the index for the new element (current count)
+    int new_index = *count;
+
+    // 2. Reallocate the array for the new size (current count + 1)
+    // Assuming safe_realloc is a wrapper around realloc that returns NULL on failure
+    ErrorInfo* temp = safe_realloc(*array, (new_index + 1) * sizeof(ErrorInfo));
+    if (temp == NULL) {
+        perror("Errore nel realloc per l'array di errori");
+        free(filename_copy); // Free the string copy if realloc fails
+        // Consider more robust error handling here if needed
+        return; // Cannot add error if realloc fails
     }
-    (*array)[*count].line = line;
-    (*count)++;  // Incrementa solo se tutto va bene
+    *array = temp; // Update the array pointer *after* successful realloc
+
+    // 3. Assign the allocated filename copy and line number to the new element
+    (*array)[new_index].file = filename_copy; // Assign the already allocated string
+    (*array)[new_index].line = line;
+
+    // 4. Increment the count ONLY if the element was fully added
+    (*count)++;
 }
 
 
@@ -265,7 +299,7 @@ char* remove_text_inside(const char* str, char* open_char, char* close_char, boo
     while (str[i] != '\0') {
         if (strchr(open_char, str[i]) != NULL) {
             count++; // Conta i delimitatori di apertura
-        } else if (strchr(close_char, str[i]) != NULL) {
+        } else if (strchr(close_char, str[i]) != NULL && count > 0) {
             count--; // Conta i delimitatori di chiusura
             if (count == 0 && keep_close_char) {
                 result[j++] = str[i]; // Copia il delimitatore di chiusura se richiesto
@@ -318,6 +352,35 @@ char* remove_chars(const char* str, const char* chars_to_remove) {
     return result;
 }
 
+char* extract_variable_identifiers(const char* declaration) {
+    if (declaration == NULL) {
+        return NULL;
+    }
+
+    // Trova il primo ',' o ';' nella stringa
+    const char* delimiter = strpbrk(declaration, ",;");
+    if (delimiter == NULL) {
+        return NULL; // Nessun delimitatore trovato
+    }
+
+    // Trova l'inizio della parola subito prima del delimitatore
+    const char* start = delimiter - 1;
+    while (start > declaration && isspace((unsigned char)*(start))) {
+        start--; // Salta gli spazi
+    }
+    while (start > declaration && !isspace((unsigned char)*(start - 1)) && *(start - 1) != ',' && *(start - 1) != ';') {
+        start--; // Trova l'inizio della parola
+    }
+
+    // Copia tutto da "start" fino alla fine della stringa
+    char* result = strdup(start);
+    if (result == NULL) {
+        return NULL; // Errore di allocazione
+    }
+
+    return result;
+}
+
 char* clean_string(const char* str) {
     char* output = strdup(str);
     if (!output) return NULL;
@@ -353,6 +416,15 @@ char* clean_string(const char* str) {
     
     printf("Dopo aver rimosso gli * dai nomi dei puntatori : %s\n", output);
 
+
+    temp = extract_variable_identifiers(output);  // Estrae gli identificatori delle variabili
+    free(output);
+    if (!temp) return NULL;
+    output = temp;
+    
+    printf("Dopo aver estratto i nomi delle variabili : %s\n", output);
+
+
     return output;
 }
 
@@ -367,22 +439,169 @@ bool in_array(const char *word, const char *array[], size_t array_size) {
     return false;
 }
 
+
+
+
+// Funzione per estrarre la prima parola da una stringa
+char* extract_first_word(const char* str) {
+    if (str == NULL || *str == '\0') {
+        return NULL; // Ritorna NULL se la stringa è vuota o nulla
+    }
+
+    // Salta eventuali spazi iniziali
+    while (isspace((unsigned char)*str)) {
+        str++;
+    }
+
+    // Trova la fine della prima parola
+    const char* end = str;
+    while (*end != '\0' && !isspace((unsigned char)*end)) {
+        end++;
+    }
+
+    // Calcola la lunghezza della parola
+    size_t length = end - str;
+
+    // Alloca memoria per la parola e copia il contenuto
+    char* word = malloc(length + 1);
+    if (word == NULL) {
+        return NULL; // Ritorna NULL in caso di errore di allocazione
+    }
+
+    strncpy(word, str, length);
+    word[length] = '\0'; // Aggiunge il terminatore di stringa
+
+    return word;
+}
+
+
+// Funzione per contare il numero di parole fino a un carattere specifico
+size_t count_words_until_char(const char* str, char stop_char) {
+    if (str == NULL) {
+        return 0; // Ritorna 0 se la stringa è nulla
+    }
+
+    size_t word_count = 0;
+    bool in_word = false;
+
+    // Salta eventuali spazi iniziali
+    while (*str != '\0' && isspace((unsigned char)*str)) {
+        str++;
+    }
+
+    // Itera sulla stringa
+    while (*str != '\0') {
+        if (*str == stop_char) {
+            // Conta stop_char come parola se è preceduto da uno spazio
+            if (isspace((unsigned char)*(str - 1))) {
+                word_count++;
+            }
+            break; // Interrompi il ciclo quando raggiungi stop_char
+        }
+
+        if (!isspace((unsigned char)*str)) {
+            if (!in_word) {
+                in_word = true; // Inizia una nuova parola
+                word_count++;
+            }
+        } else {
+            in_word = false; // Fine della parola
+        }
+        str++;
+    }
+
+    return word_count;
+}
+
+// Funzione per contare il numero di variabili in una stringa
+size_t count_words_in_string(const char* str) {
+    if (str == NULL) {
+        return 0; // Ritorna 0 se la stringa è nulla
+    }
+
+    size_t variable_count = 0;
+    bool in_word = false;
+
+    // Salta eventuali spazi iniziali
+    while (*str != '\0' && isspace((unsigned char)*str)) {
+        str++;
+    }
+
+    // Itera sulla stringa
+    while (*str != '\0') {
+        if (!isspace((unsigned char)*str) && *str != ',' && *str != ';') {
+            if (!in_word) {
+                in_word = true; // Inizia una nuova variabile
+                variable_count++;
+            }
+        } else {
+            in_word = false; // Fine della variabile
+        }
+        str++;
+    }
+
+    return variable_count;
+}
+
+
+
+bool ends_with(const char* line, char separator) {
+    if (line[strlen(line) - 1] == separator) {
+        return true; // La riga termina con il separatore
+    }
+    return false; // La riga non termina con il separatore
+}
+
+
+// Funzione per verificare se una stringa è una dichiarazione di variabile
+bool is_variable_declaration(const char* instruction) {
+    char* first_word = extract_first_word(instruction);
+    
+    if (first_word == NULL || in_array(first_word, keywords_to_skip, num_keywords_to_skip)) {
+        return false; // Non è una dichiarazione di variabile
+    }
+    free(first_word); // Libera la memoria allocata per first_word
+
+    char* open_parenthesis = strchr(instruction, '(');
+    char* equals = strchr(instruction, '=');
+
+    if ((open_parenthesis != NULL && equals == NULL) || (open_parenthesis != NULL && equals != NULL && open_parenthesis < equals)) {
+        return false; // Non è una dichiarazione di variabile
+    }
+
+
+    if (equals != NULL && count_words_until_char(instruction, '=') <= 2) {
+        return false; // Non è una dichiarazione di variabile
+    }
+    
+
+    if (count_words_in_string(instruction) <= 1) {
+        return false; // Non è una dichiarazione di variabile
+    }
+
+    return true; // È una dichiarazione di variabile
+}
+
+
 //Controlla se la "name" è un identificatore di variabile valido
 bool is_valid_identifier(const char *name) {
 
     // Controllo lunghezza minima (almeno 1 carattere)
     if (name == NULL || name[0] == '\0') {
+        printf("Nome non valido: %s\n", name);
         return false;
     }
 
     //controllo il primo carattere
     if (!isalpha(name[0]) && name[0] != '_') {      //se il primo carattere non è una lettera o underscore (es. inizia con un numero)
+        printf("Nome non valido: %s\n", name);
         return false;                               //NON puo essere un nome valido
     }
 
     //controllo caratteri successivi
     for (size_t i = 1; name[i] != '\0'; i++) {
         if (!isalnum(name[i]) && name[i] != '_') {  //se i prossimi caratteri non sono alfanumeri o underscore 
+            printf("Nome non valido: %s\n", name);
             return false;                           //NON puo essere un nome valido
         }
     }
@@ -390,12 +609,20 @@ bool is_valid_identifier(const char *name) {
     //controllo che non sia una parola chiave riservata in c
     for (size_t i = 0; i < num_c_reserved_keywords; i++) {
         if (strcmp(name, c_reserved_keywords[i]) == 0) {
+            printf("Nome non valido: %s\n", name);
             return false;
         }
     }
 
+
+    printf("Nome valido: %s\n", name);
+
     return true;
 }
+
+
+
+
 
 VarInfo count_variables(const char* text, const char* filename) {
     VarInfo out = {
@@ -403,80 +630,116 @@ VarInfo count_variables(const char* text, const char* filename) {
         .errors_num = 0,
         .errors = NULL
     };
-    
+
     const char *line_sep = "\n";
     const char *instr_sep = ";";
-    const char *word_sep = " ,\t\n";
-    char* var_names = NULL;
+    const char *word_sep = " ,;\t\n";
+    // char* var_names = NULL; // This variable is unused
 
-    StringSplit lines = split_string(text, line_sep, true);
-    
+    StringSplit lines = split_string(text, line_sep, true, false);
+
     for (size_t l = 0; l < lines.len; l++) {
-        
-        printf("Riga %ld: %s \n\n", l, lines.string_list[l]);
-        
-        if (strlen(lines.string_list[l]) > 0) {
-          
-            StringSplit instructions = split_string(lines.string_list[l], instr_sep, false);
-            
-            for (size_t i = 0; i < instructions.len; i++){
-        
-                StringSplit words = split_string(clean_string(instructions.string_list[i]), word_sep, false);
-        
 
-                
-                if (words.len > 0) {  // Controlla words.len > 0
-                    for (size_t w = 1; w < words.len; w++) {
-        
-                        printf("Parola %ld: %s \n\n", w, words.string_list[w]);
+        printf("\n\n\nRiga %ld: %s \n\n", l, lines.string_list[l]);
+
+        if (strlen(lines.string_list[l]) > 0 && ends_with(lines.string_list[l], ';')) {
+
+            StringSplit instructions = split_string(lines.string_list[l], instr_sep, false, true);
+
+            for (size_t i = 0; i < instructions.len; i++){
+
+                if (is_variable_declaration(instructions.string_list[i])) {
+                    printf("sono una dichiarazione di variabile: %s\n", instructions.string_list[i]);
+                    // *** FIX 3: Store and free clean_string result ***
+                    char* cleaned_instruction = clean_string(instructions.string_list[i]);
+                    // if (cleaned_instruction == NULL) {
+                    //     // Handle potential allocation error from clean_string
+                    //     perror("Errore in clean_string");
+                    //     continue; // Skip this instruction
+                    // }
+
+                    StringSplit words = split_string(cleaned_instruction, word_sep, false, false);
+
+                    free(cleaned_instruction); // *** FIX 3: Free the cleaned string ***
+
+                    for (size_t w = 0; w < words.len; w++)
+                    {
                         out.variables_num++;
+
                         if (!is_valid_identifier(words.string_list[w])) {
-                            add_error(&out.errors, &out.errors_num, filename, l+1);
+                            // *** FIX 1: Removed the erroneous out.errors_num++; here ***
+                            // Add error if not a valid identifier
+                            add_error(&out.errors, &out.errors_num, filename, l + 1);
+                            // add_error is now responsible for incrementing out.errors_num
                         }
                     }
+                    free_string_split(words);
                 }
-                free_string_split(words);  // Usa la versione migliorato
-
             }
-
-
             free_string_split(instructions);
         }
     }
 
-    free_string_split(lines);  // Usa la versione migliorata
+    free_string_split(lines);
     return out;
 }
-
 
 
 // Funzione principale modificata
 int main() {
 
     char *filename = "test_variabili.c";
-    char *file_content = leggi_da_filename(filename);
+    char *file_content = leggi_da_filename(filename); // Assuming leggi_da_filename returns a heap-allocated string
+
+    if (file_content == NULL) {
+        fprintf(stderr, "Errore: Impossibile leggere il file %s\n", filename);
+        return 1;
+    }
 
     VarInfo vi = count_variables(file_content, filename);
 
+    // Free the file content read from the file
+    free(file_content);
+
+
     printf("--------------------------------------------------------\n");
-    
+
     printf("OUTPUT:\n\n");
-    
+
     printf("Numero variabili: %d \n\n", vi.variables_num);
 
     printf("Numero errori: %d \n\n", vi.errors_num);
-    
-    // Scorri tutti gli elementi
-    for (int i = 0; i < vi.errors_num; i++) {
-        // Verifica se il puntatore al file è valido (se usi un marcatore di fine)
-        if (vi.errors[i].file == NULL) {
-            break;
+
+    // Controllo se l'array degli errori è stato allocato
+    // This check is still useful, but the previous crash reason is fixed.
+    if (vi.errors == NULL && vi.errors_num > 0) {
+         // This state should ideally not happen with the corrected add_error,
+         // unless the very first realloc fails.
+         fprintf(stderr, "Errore: array di errori non allocato nonostante errors_num > 0\n");
+         // If this happens, memory management is severely broken.
+    } else if (vi.errors != NULL) { // Only iterate if the array pointer is not NULL
+        // Itera sugli errori
+        for (int i = 0; i < vi.errors_num; i++) {
+             // With the fixed add_error, vi.errors[i].file should not be NULL here
+             // unless strdup failed for that specific error, which add_error now handles by not incrementing count.
+             // So this check inside the loop is less critical for crashing, but good defensive programming.
+             if (vi.errors[i].file == NULL) {
+                fprintf(stderr, "Warning: file non inizializzato per l'errore %d (index %d)\n", i+1, i);
+                continue; // Skip printing this invalid error entry
+             }
+            printf("(file: %s, line: %d)\n", vi.errors[i].file, vi.errors[i].line);
         }
-        
-        // Stampa la stringa nel formato richiesto
-        printf("(file: %s, line: %d)\n", vi.errors[i].file, vi.errors[i].line);
     }
 
 
+    // *** FIX 4: Free allocated memory for errors ***
+    free_varinfo(&vi);
+
     return 0;
+
+
+    
+    return 0;
+
 }
+
