@@ -7,8 +7,6 @@
 #include <ctype.h>
 #include <libgen.h>
 
-//#include "variabili.c"
-
 int righe_con_commento = 0;
 
 int fai_tutto(char *in_filename, char *out_filename){
@@ -39,10 +37,6 @@ int fai_tutto(char *in_filename, char *out_filename){
     
     //scriviamo il risultato nel file di output o nello stdout
     scrivi(out_filename, testo);
-
-    printf("<debug>: Righe di commenti rimosse: %i\n", righe_con_commento);
-
-    ////////
 
     //liberiamo lo spazio allocato e ritorniamo 0 (esecuzione terminata correttamente)
     free(testo);
@@ -231,7 +225,7 @@ Inclusi *inizializza_inclusi(char *in_filename) {
 }
 
 void aggiungi(char *filename, Inclusi *inclusi) {
-    //controlliamo se c'è bisogno di allocare altro spazio. ventulmente aumentiamo la capacita esponenzialmente (maggiore efficienza)
+    //controlliamo se c'è bisogno di allocare altro spazio. Eventulmente aumentiamo la capacita esponenzialmente (maggiore efficienza)
     if (inclusi->len >= inclusi->capacity) {
         inclusi->capacity *= 2;            
         inclusi->files = safe_realloc(inclusi->files, inclusi->capacity * sizeof(char *));
@@ -271,7 +265,7 @@ int conta_include(char *testo) {
     return count;
 }
 
-//effettua comunque un realloc ma gestendo meglio i casi in cui realloc fallisca
+//Effettua comunque un realloc ma gestendo meglio i casi in cui realloc fallisca
 //Edit: meglio prendere un puntatore generico void come parametro. Almeno possiamo gestire qualsiasi riallocazione e non solo stringhe
 void* safe_realloc(void *testo, size_t new_size) {
     void* tmp = realloc(testo, new_size);
@@ -282,7 +276,7 @@ void* safe_realloc(void *testo, size_t new_size) {
     return tmp;
 }
 
-//Scrive "testo" nel file "out_filename" (se presente) oppure in stdout (se out_filename == NULL)
+//Scrive "testo" nel file "out_filename" oppure in stdout (se out_filename == NULL)
 int scrivi(char *out_filename, char *testo) {
     //se out_filename è NULL, scriviamo su stdout con printf
     if (out_filename == NULL) {

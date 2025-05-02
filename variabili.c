@@ -6,7 +6,6 @@
 #include <stddef.h>   // Per size_t 
 
 #include "progetto.h"
-#include "funzioni.c"
 
 
 
@@ -458,7 +457,7 @@ VarInfo count_variables(const char* text, const char* filename) {
 
 
 // Funzione principale modificata
-int main() {
+/*int main() {
 
     char *filename = "test_variabili.c";
     char *file_content = leggi_da_filename(filename);
@@ -487,3 +486,4 @@ int main() {
 
     return 0;
 }
+*/
