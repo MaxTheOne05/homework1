@@ -135,9 +135,9 @@ const size_t num_c_reserved_keywords = sizeof(c_reserved_keywords) / sizeof(c_re
 
 
 
-// Funzione per dividere una stringa in base a delimitatori
+//Funzione per dividere una stringa in base a delimitatori. keep_empty se true mantiene gli \n anche nelle righe vuote
 StringSplit split_string(const char *input, const char *separators, bool keep_empty) {
-    StringSplit result = {NULL, 0}; // inizializzazione vuota
+    StringSplit result = {NULL, 0}; //inizializzazione vuota
 
     if (!input || !separators) {
         return result;
@@ -254,7 +254,7 @@ void free_varinfo(VarInfo* info) {
 
 
 
-// Funzioni per pulire le stringhe
+//Cancella tutto il contenuto tra l'open_char ed il close_char. Se keep_close_char true il carattere di chiusura non viene cancellato
 char* remove_text_inside(const char* str, char* open_char, char* close_char, bool keep_close_char) {
     char *result = malloc(strlen(str) + 1);
     if (!result) return NULL; // Controllo errore allocazione
@@ -280,6 +280,9 @@ char* remove_text_inside(const char* str, char* open_char, char* close_char, boo
     return result;
 }
 
+
+//Cancella tutte le stringhe del testo. Lo utilizziamo per rimuovere le inizializzazioni delle stringhe.
+//L'altra funzione per rimuovere le inizializzazioni leva tutto quello che è compreso '=' e ','. COn le stringhe non funzioerebbe
 char* remove_strings(const char* str) {
     char* result = malloc(strlen(str) + 1);
     if (!result) return NULL; // Controllo errore allocazione
@@ -302,6 +305,8 @@ char* remove_strings(const char* str) {
     return result;
 }
 
+
+//Data una stringa ed un array di caratteri cancella tali caratteri dalla stringa, e ritorna la nuova stringa
 char* remove_chars(const char* str, const char* chars_to_remove) {
     char* result = malloc(strlen(str) + 1);
     if (!result) return NULL; // Controllo errore allocazione
@@ -318,6 +323,7 @@ char* remove_chars(const char* str, const char* chars_to_remove) {
     return result;
 }
 
+//Pulisce la stringa sfruttando le funzioni sopra. Rimuove tutto quello che è tra parentesi, le stringhe e le inizializzazioni e delle variabili
 char* clean_string(const char* str) {
     char* output = strdup(str);
     if (!output) return NULL;
@@ -330,7 +336,7 @@ char* clean_string(const char* str) {
     printf("Dopo aver tutto ciò che si trova all'interno di parentesi: %s\n", output);
 
 
-    temp = remove_strings(output);  
+    temp = remove_strings(output);                      //Rimuove tutte le stringhe dal testo
     free(output);
     if (!temp) return NULL;
     output = temp;
@@ -338,7 +344,7 @@ char* clean_string(const char* str) {
     printf("Dopo aver rimosso le stringhe: %s\n", output);
 
 
-    temp = remove_text_inside(output, "=", ",;", true);  // Rimuove le inizializzazioni delle variabili
+    temp = remove_text_inside(output, "=", ",;", true);  //Rimuove le inizializzazioni delle variabili
     free(output);
     if (!temp) return NULL;
     output = temp;
@@ -346,7 +352,7 @@ char* clean_string(const char* str) {
     printf("Dopo aver rimosso le inizializzazioni : %s\n", output);
 
 
-    temp = remove_chars(output, "*");  // Rimuove gli * dai nomi delle variabili puntatore
+    temp = remove_chars(output, "*");                   //Rimuove gli * dai nomi delle variabili puntatore per evitare che vengano consideati come parte del nome di variabile
     free(output);
     if (!temp) return NULL;
     output = temp;
@@ -357,7 +363,7 @@ char* clean_string(const char* str) {
 }
 
 
-// Funzione per controllare se una parola è presente in un array di stringhe
+//Funzione per controllare se una parola è presente in un array di stringhe
 bool in_array(const char *word, const char *array[], size_t array_size) {
     for (size_t i = 0; i < array_size; i++) {
         if (strcmp(word, array[i]) == 0) {
@@ -397,6 +403,7 @@ bool is_valid_identifier(const char *name) {
     return true;
 }
 
+//Conta il numero di variabili TOTALI nel file di input, il numero di variabili con nome errato e la lista di coppie (filename, num riga) per ogni errore rilevato
 VarInfo count_variables(const char* text, const char* filename) {
     VarInfo out = {
         .variables_num = 0,

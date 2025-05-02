@@ -7,6 +7,8 @@
 #include <ctype.h>
 #include <libgen.h>
 
+//#include "variabili.c"
+
 int righe_con_commento = 0;
 
 int fai_tutto(char *in_filename, char *out_filename){
@@ -23,25 +25,25 @@ int fai_tutto(char *in_filename, char *out_filename){
     //inizializziamo la struct inclusi che mantiene i nomi dei file gia inclusi (per evitare include ciclici)
     Inclusi *inclusi = inizializza_inclusi(in_filename);    //passiamo il path assoluto al file di input (in_filename) per evitare che venga incluso una 2a volta
 
-    //finche ci sono include VALIDI nel testo li rimuoviamo
-    while (conta_include(testo)>0){
-        char *tmp = rimuovi_commenti(testo);        //per evitare di risolvere include commentati andiamo prima a rimuovere i commenti. Tuttavia rimuovi_commenti alloca nuova memoria
-        free(testo);                                //e la assegniamo a testo. Questo significa che il valore precedente di testo non sarà più accessibile e dobbiamo liberarlo
-
-        testo = risolvi_includes(tmp, input_dir, inclusi);      //tmp conterrà il testo aggiornato con gli include risolti
-        free(tmp);                                              //Analogo a prima. L'area di memoria puntata da tmp non sarà piu accessibile e quindi dobbiamo liberarla
-    }
-
-    //rimuoviamo eventuali commenti introdotti con l'ultimo include (MIGLIORABILE)
-    char *tmp = rimuovi_commenti(testo);
-    free(testo);
+    //Rimuoviamo i commenti presenti nel file iniziale
+    char *tmp = rimuovi_commenti(testo);        //per evitare di risolvere include commentati andiamo prima a rimuovere i commenti. Tuttavia rimuovi_commenti alloca nuova memoria
+    free(testo);                                //e la assegniamo a testo. Questo significa che il valore precedente di testo non sarà più accessibile e dobbiamo liberarlo
     testo = tmp;
+
+    //finche ci sono include VALIDI nel testo li risolviamo
+    while (conta_include(testo)>0){
+        tmp = risolvi_includes(testo, input_dir, inclusi);      //tmp conterrà il testo aggiornato con gli include risolti
+        free(testo);                                            //Analogo a prima. L'area di memoria puntata da tmp non sarà piu accessibile e quindi dobbiamo liberarla
+        testo = tmp;                                            //ci salviamo il testo con gli include risolti
+    }
     
     //scriviamo il risultato nel file di output o nello stdout
     scrivi(out_filename, testo);
 
     printf("<debug>: Righe di commenti rimosse: %i\n", righe_con_commento);
-    
+
+    ////////
+
     //liberiamo lo spazio allocato e ritorniamo 0 (esecuzione terminata correttamente)
     free(testo);
     return 0;
@@ -161,6 +163,12 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
                 if (gia_incluso(filename, inclusi) == 0){
                     aggiungi(filename, inclusi);                            //lo aggiungiamo alla lista di file gia inclusi
                     char* included_content = leggi_da_filename(filename);   //prendiamo il contenuto del file da includere (il caso di fallimento in apertura è gia gestito in leggi())
+                    
+                    char* tmp = rimuovi_commenti(included_content);
+                    free(included_content);
+                    included_content = tmp;
+                    //conta_variabili(filename)
+
                     size_t lenTesto = strlen(included_content);             //verifichiamo che ci sia abbastanza spazio per scrivere
 
                     size_t spazio_necessario = write_pos+lenTesto+1;        //dobbiamo scrivere: testo fino ad ora + testo dell'include + \0

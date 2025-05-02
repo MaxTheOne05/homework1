@@ -2,39 +2,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+
 #include "funzioni.c"
+#include "variabili.c"
 
-char* remove_text_inside(const char* str, const char* open_char, const char* close_char, bool keep_close_char) {
-    char *result = malloc(strlen(str) + 1);
-    if (!result) return NULL; // Controllo errore allocazione
 
-    int i = 0, j = 0;
-    int count = 0;
-
-    while (str[i] != '\0') {
-        if (strchr(open_char, str[i]) != NULL) {
-            count++; // Conta i delimitatori di apertura
-        } else if (strchr(close_char, str[i]) != NULL) {
-            count--; // Conta i delimitatori di chiusura
-            if (count == 0 && keep_close_char) {
-                result[j++] = str[i]; // Copia il delimitatore di chiusura se richiesto
-            }
-        } else if (count == 0) {
-            result[j++] = str[i]; // Copia solo i caratteri fuori dai delimitatori
-        }
-        i++;
-    }
-
-    result[j] = '\0'; // Terminazione della stringa
-    return result;
-}
+/*IDEA: Facciamo un while. finhe c'è un typedef nel testo troviamo l'indice in cui inizia typedef e sostituisce ogni carattere con uno spazio (tranne gli \n). 
+  In questo modo preserviamo gli indici associati ad ogni parola. Poi prendiamo la nuova stringa e */
 
 int find_first_separator_index(const char* input_string, const char* terminators, size_t index) {
     if (input_string == NULL) {
         return -1; // Gestisce il caso di stringa di input NULL
     }
 
-    // Verifica che l'indice sia valido
+    //Verifica che l'indice sia valido
     size_t input_length = strlen(input_string);
     if (index >= input_length) {
         fprintf(stderr, "Indice fuori dai limiti della stringa.\n");
