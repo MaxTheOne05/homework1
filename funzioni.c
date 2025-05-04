@@ -7,7 +7,9 @@
 #include <ctype.h>
 #include <libgen.h>
 
+// Vairabili globali che serviranno per il Verbose
 int righe_con_commento = 0;
+int file_inclusi = 0;
 
 int fai_tutto(char *in_filename, char *out_filename){
 
@@ -155,6 +157,8 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
 
                 //Se il file è gia stato incluso và ignorato per evitare include ciclici
                 if (gia_incluso(filename, inclusi) == 0){
+
+                    file_inclusi++;                                         //incremento il contatore di file inclusi 
                     aggiungi(filename, inclusi);                            //lo aggiungiamo alla lista di file gia inclusi
                     char* included_content = leggi_da_filename(filename);   //prendiamo il contenuto del file da includere (il caso di fallimento in apertura è gia gestito in leggi())
                     
@@ -359,7 +363,11 @@ char *rimuovi_commenti(char *testo) {
 
 
 void fai_verbose(){
+
     
+    printf("               VERBOSE\n\n");
+    printf("Righe di commento eliminate: %d \n", righe_con_commento); 
+    printf("Numero di file inclusi: %d \n", file_inclusi);
 }
 
 
