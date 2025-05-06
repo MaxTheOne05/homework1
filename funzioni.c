@@ -7,9 +7,17 @@
 #include <ctype.h>
 #include <libgen.h>
 
-// Vairabili globali che serviranno per il Verbose
+//Var Globale che ci tiene il conto di righe di commento eliminate
 int righe_con_commento = 0;
-int file_inclusi = 0;
+
+//Il numero di file "" inclusi è dato da inclusi.len quando il programma termina
+
+//Var Globale che mantiene le informazioni sui nomi di variabili errati. La dobbiamo solo inizializzare perche è dichiara nel file progetto.h
+VarInfo out1234 = {
+    .variables_num = 0,
+    .errors_num = 0,
+    .errors = NULL
+};
 
 int fai_tutto(char *in_filename, char *out_filename){
 
@@ -40,9 +48,23 @@ int fai_tutto(char *in_filename, char *out_filename){
     //scriviamo il risultato nel file di output o nello stdout
     scrivi(out_filename, testo);
 
+    stampaDiDebug();
+
     //liberiamo lo spazio allocato e ritorniamo 0 (esecuzione terminata correttamente)
     free(testo);
     return 0;
+}
+
+void stampaDiDebug(){
+    printf("<debug>: Righe di commento eliminate: %i\n", righe_con_commento);
+    printf("<debug>: Numero di variabili non valide: %i\n", out1234.variables_num);
+    printf("<debug>: Numero di errori rilevati: %i\n", out1234.errors_num);
+
+    printf("<debug>: Errori Rilevati:\n");
+    for (int i = 0; i<out1234.errors_num; i++){
+        ErrorInfo err = out1234.errors[i];
+        printf("Riga: %i, File: %s\n", err.line, err.file);
+    }
 }
 
 //Dato il nome del file lo apre in sola lettura
@@ -157,15 +179,13 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
 
                 //Se il file è gia stato incluso và ignorato per evitare include ciclici
                 if (gia_incluso(filename, inclusi) == 0){
-
-                    file_inclusi++;                                         //incremento il contatore di file inclusi 
                     aggiungi(filename, inclusi);                            //lo aggiungiamo alla lista di file gia inclusi
                     char* included_content = leggi_da_filename(filename);   //prendiamo il contenuto del file da includere (il caso di fallimento in apertura è gia gestito in leggi())
                     
                     char* tmp = rimuovi_commenti(included_content);
                     free(included_content);
                     included_content = tmp;
-                    //conta_variabili(filename)
+                    count_variables(included_content, filename);
 
                     size_t lenTesto = strlen(included_content);             //verifichiamo che ci sia abbastanza spazio per scrivere
 
@@ -363,11 +383,10 @@ char *rimuovi_commenti(char *testo) {
 
 
 void fai_verbose(){
-
     
     printf("               VERBOSE\n\n");
     printf("Righe di commento eliminate: %d \n", righe_con_commento); 
-    printf("Numero di file inclusi: %d \n", file_inclusi);
+    //printf("Numero di file inclusi: %d \n", inclusi->len);
 }
 
 

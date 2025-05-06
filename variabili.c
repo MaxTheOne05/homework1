@@ -634,12 +634,7 @@ bool is_valid_identifier(const char *name) {
 
 //Conta il numero di variabili TOTALI nel file di input, il numero di variabili con nome errato e la lista di coppie (filename, num riga) per ogni errore rilevato
 
-VarInfo count_variables(const char* text, const char* filename) {
-    VarInfo out = {
-        .variables_num = 0,
-        .errors_num = 0,
-        .errors = NULL
-    };
+void count_variables(const char* text, const char* filename) {
 
     const char *line_sep = "\n";
     const char *instr_sep = ";";
@@ -674,12 +669,12 @@ VarInfo count_variables(const char* text, const char* filename) {
 
                     for (size_t w = 0; w < words.len; w++)
                     {
-                        out.variables_num++;
+                        out1234.variables_num++;
 
                         if (!is_valid_identifier(words.string_list[w])) {
                             // *** FIX 1: Removed the erroneous out.errors_num++; here ***
                             // Add error if not a valid identifier
-                            add_error(&out.errors, &out.errors_num, filename, l + 1);
+                            add_error(&out1234.errors, &out1234.errors_num, filename, l + 1);
                             // add_error is now responsible for incrementing out.errors_num
                         }
                     }
@@ -690,15 +685,35 @@ VarInfo count_variables(const char* text, const char* filename) {
         }
     }
 
+    stampaVarInfo(&out1234);
+
     free_string_split(lines);
-    return out;
 }
 
 
-// Funzione principale modificata
+void stampaVarInfo(VarInfo *vi){
+    printf("OUTPUT:\n\n");
+
+    printf("Numero variabili: %d \n\n", vi->variables_num);
+
+    printf("Numero errori: %d \n\n", vi->errors_num);
+
+    for (int i = 0; i < vi->errors_num; i++) {
+        // With the fixed add_error, vi.errors[i].file should not be NULL here
+        // unless strdup failed for that specific error, which add_error now handles by not incrementing count.
+        // So this check inside the loop is less critical for crashing, but good defensive programming.
+        if (vi->errors[i].file == NULL) {
+           fprintf(stderr, "Warning: file non inizializzato per l'errore %d (index %d)\n", i+1, i);
+           continue; // Skip printing this invalid error entry
+        }
+       printf("(file: %s, line: %d)\n", vi->errors[i].file, vi->errors[i].line);
+    }
+}
+
+/* Funzione principale modificata
 int main() {
 
-    char *filename = "test_variabili.c";
+    char *filename = "test_variabili2.c";
     char *file_content = leggi_da_filename(filename); // Assuming leggi_da_filename returns a heap-allocated string
 
     if (file_content == NULL) {
@@ -706,48 +721,27 @@ int main() {
         return 1;
     }
 
-    VarInfo vi = count_variables(file_content, filename);
+    VarInfo vi = {
+        .variables_num = 0,
+        .errors_num = 0,
+        .errors = NULL
+    };
 
-    // Free the file content read from the file
-    free(file_content);
-
+    count_variables(file_content, filename, vi);
 
     printf("--------------------------------------------------------\n");
 
-    printf("OUTPUT:\n\n");
-
-    printf("Numero variabili: %d \n\n", vi.variables_num);
-
-    printf("Numero errori: %d \n\n", vi.errors_num);
-
-    // Controllo se l'array degli errori è stato allocato
-    // This check is still useful, but the previous crash reason is fixed.
-    if (vi.errors == NULL && vi.errors_num > 0) {
-         // This state should ideally not happen with the corrected add_error,
-         // unless the very first realloc fails.
-         fprintf(stderr, "Errore: array di errori non allocato nonostante errors_num > 0\n");
-         // If this happens, memory management is severely broken.
-    } else if (vi.errors != NULL) { // Only iterate if the array pointer is not NULL
-        // Itera sugli errori
-        for (int i = 0; i < vi.errors_num; i++) {
-             // With the fixed add_error, vi.errors[i].file should not be NULL here
-             // unless strdup failed for that specific error, which add_error now handles by not incrementing count.
-             // So this check inside the loop is less critical for crashing, but good defensive programming.
-             if (vi.errors[i].file == NULL) {
-                fprintf(stderr, "Warning: file non inizializzato per l'errore %d (index %d)\n", i+1, i);
-                continue; // Skip printing this invalid error entry
-             }
-            printf("(file: %s, line: %d)\n", vi.errors[i].file, vi.errors[i].line);
-        }
-    }
+    stampaVarInfo(&vi);
 
 
     // *** FIX 4: Free allocated memory for errors ***
     free_varinfo(&vi);
 
+     // Free the file content read from the file
+     free(file_content);
 
 
     
     return 0;
 
-}
+}*/
