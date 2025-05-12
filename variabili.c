@@ -14,8 +14,6 @@
 // "union",
 // "enum",
 
-
-
 // Parole chiave per i tipi di dato standard in C e typedef comuni dalle librerie standard
 const char *c_data_types[] = {
     // Parole chiave standard C
@@ -733,5 +731,4 @@ int main() {
 
     
     return 0;
-
 }
