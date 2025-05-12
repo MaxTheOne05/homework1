@@ -34,6 +34,8 @@ typedef struct {
     ErrorInfo* errors;	//
 } VarInfo;
 
+extern VarInfo out1234;
+
 void stampaDiDebug();
 
 int fai_tutto(char *in_filename, char *out_filename);
@@ -51,7 +53,7 @@ void* safe_realloc(void* ptr, size_t new_size);
 int scrivi(char *out_filename, char *testo);
 void fai_verbose();
 
-extern VarInfo out1234;
+
 
 // Array di keyword C riservate
 extern const char* c_reserved_keywords[];

@@ -15,6 +15,7 @@
 // "enum",
 
 
+
 // Parole chiave per i tipi di dato standard in C e typedef comuni dalle librerie standard
 const char *c_data_types[] = {
     // Parole chiave standard C
@@ -710,7 +711,7 @@ void stampaVarInfo(VarInfo *vi){
     }
 }
 
-/* Funzione principale modificata
+//Funzione principale modificata
 int main() {
 
     char *filename = "test_variabili2.c";
@@ -721,21 +722,10 @@ int main() {
         return 1;
     }
 
-    VarInfo vi = {
-        .variables_num = 0,
-        .errors_num = 0,
-        .errors = NULL
-    };
 
-    count_variables(file_content, filename, vi);
+    count_variables(file_content, filename);
 
     printf("--------------------------------------------------------\n");
-
-    stampaVarInfo(&vi);
-
-
-    // *** FIX 4: Free allocated memory for errors ***
-    free_varinfo(&vi);
 
      // Free the file content read from the file
      free(file_content);
@@ -744,4 +734,4 @@ int main() {
     
     return 0;
 
-}*/
+}
