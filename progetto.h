@@ -7,7 +7,6 @@
 #include <ctype.h>
 #include <stdio.h>
 
-
 //Utilizzata per capire quali file sono gia stati inclusi e quali no. Evita include ciclici
 typedef struct {
     char **files;      	//lista dei file già inclusi
@@ -32,6 +31,9 @@ typedef struct {
     int variables_num;	//
     int errors_num;		//
     ErrorInfo* errors;	//
+    int commenti;       //
+    int num_inclusi;
+
 } VarInfo;
 
 extern VarInfo out1234;
@@ -52,8 +54,6 @@ char *rimuovi_commenti(char *testo);
 void* safe_realloc(void* ptr, size_t new_size);
 int scrivi(char *out_filename, char *testo);
 void fai_verbose();
-
-
 
 // Array di keyword C riservate
 extern const char* c_reserved_keywords[];

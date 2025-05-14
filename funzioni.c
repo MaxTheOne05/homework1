@@ -7,23 +7,22 @@
 #include <ctype.h>    // Per verifiche su caratteri (es. isdigit)
 #include <stdbool.h>
 #include <stddef.h>   // Per size_t 
-
-
 /* 
     ---------------------------------------------------------GLOBALI---------------------------------------------------------
 */
-//Var Globale che mantiene le informazioni sui nomi di variabili errati. La dobbiamo solo inizializzare perche è dichiara nel file progetto.h
+// Struct globale utilizzata per tenere tutti i contatori e le informazioni che servono per il verbose. La dobbiamo solo inizializzare perche è dichiara nel file progetto.h
 VarInfo out1234 = {
     .variables_num = 0,
     .errors_num = 0,
-    .errors = NULL
+    .errors = NULL,
+    .commenti = 0,
+    .num_inclusi = 0
 };
 
 // Tipi per strutture, unioni ed enumerazioni (introducono nuovi tipi composti)
 // "struct",
 // "union",
 // "enum",
-
 // Parole chiave per i tipi di dato standard in C e typedef comuni dalle librerie standard
 const char *c_data_types[] = {
     // Parole chiave standard C
@@ -157,9 +156,6 @@ const size_t num_c_type_modifiers = sizeof(c_type_modifiers) / sizeof(c_type_mod
 const size_t num_c_reserved_keywords = sizeof(c_reserved_keywords) / sizeof(c_reserved_keywords[0]);
 const size_t num_keywords_to_skip = sizeof(keywords_to_skip) / sizeof(keywords_to_skip[0]);
 
-//Var Globale che ci tiene il conto di righe di commento eliminate
-int righe_con_commento = 0;
-
 //Il numero di file "" inclusi è dato da inclusi.len quando il programma termina
 /* 
     ---------------------------------------------------------FINE GLOBALI---------------------------------------------------------
@@ -194,23 +190,9 @@ int fai_tutto(char *in_filename, char *out_filename){
     //scriviamo il risultato nel file di output o nello stdout
     scrivi(out_filename, testo);
 
-    stampaDiDebug();
-
     //liberiamo lo spazio allocato e ritorniamo 0 (esecuzione terminata correttamente)
     free(testo);
     return 0;
-}
-
-void stampaDiDebug(){
-    printf("<debug>: Righe di commento eliminate: %i\n", righe_con_commento);
-    printf("<debug>: Numero di variabili non valide: %i\n", out1234.variables_num);
-    printf("<debug>: Numero di errori rilevati: %i\n", out1234.errors_num);
-
-    printf("<debug>: Errori Rilevati:\n");
-    for (int i = 0; i<out1234.errors_num; i++){
-        ErrorInfo err = out1234.errors[i];
-        printf("Riga: %i, File: %s\n", err.line, err.file);
-    }
 }
 
 //Dato il nome del file lo apre in sola lettura
@@ -282,7 +264,7 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
       viene copiato solo alla prima invocazione della funzione. In tutte le successive invocazioni <stdio.h> è gia presente in inclusi e quindi verrà ignorato.
       Per risolvere il problema è sufficiente creare un inclusi2 "locale" che si resetta ad ogni invocazione. */
 
-    size_t lenResult = 1;                   //inizialmente vale solo 1 perche contiene solo il terminatore '\0'
+    size_t lenResult = 1;                   //inizialmente vale solo 1 perchè contiene solo il terminatore '\0'
     size_t write_pos = 0;                   //ci dice il prossimo punto in cui andremo a scrivere
     char *result = malloc(lenResult);       
     result[0] = '\0';
@@ -329,9 +311,11 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
                 //Se il file è gia stato incluso và ignorato per evitare include ciclici
                 if (gia_incluso(filename, inclusi) == 0){
                     aggiungi(filename, inclusi);                            //lo aggiungiamo alla lista di file gia inclusi
+                    out1234.num_inclusi++;
                     char* included_content = leggi_da_filename(filename);   //prendiamo il contenuto del file da includere (il caso di fallimento in apertura è gia gestito in leggi())
-                    
                     char* tmp = rimuovi_commenti(included_content);
+                    count_variables(included_content, filename);
+
                     free(included_content);
                     included_content = tmp;
                     count_variables(included_content, filename);
@@ -768,7 +752,6 @@ char* extract_first_word(const char* str) {
     if (word == NULL) {
         return NULL; // Ritorna NULL in caso di errore di allocazione
     }
-
     strncpy(word, str, length);
     word[length] = '\0'; // Aggiunge il terminatore di stringa
 
@@ -809,7 +792,6 @@ size_t count_words_until_char(const char* str, char stop_char) {
         }
         str++;
     }
-
     return word_count;
 }
 
@@ -818,7 +800,6 @@ size_t count_words_in_string(const char* str) {
     if (str == NULL) {
         return 0; // Ritorna 0 se la stringa è nulla
     }
-
     size_t variable_count = 0;
     bool in_word = false;
 
@@ -839,7 +820,6 @@ size_t count_words_in_string(const char* str) {
         }
         str++;
     }
-
     return variable_count;
 }
 
@@ -884,13 +864,11 @@ bool is_valid_identifier(const char *name) {
         printf("Nome non valido: %s\n", name);
         return false;
     }
-
     //controllo il primo carattere
     if (!isalpha(name[0]) && name[0] != '_') {      //se il primo carattere non è una lettera o underscore (es. inizia con un numero)
         printf("Nome non valido: %s\n", name);
         return false;                               //NON puo essere un nome valido
     }
-
     //controllo caratteri successivi
     for (size_t i = 1; name[i] != '\0'; i++) {
         if (!isalnum(name[i]) && name[i] != '_') {  //se i prossimi caratteri non sono alfanumeri o underscore 
@@ -898,7 +876,6 @@ bool is_valid_identifier(const char *name) {
             return false;                           //NON puo essere un nome valido
         }
     }
-
     //controllo che non sia una parola chiave riservata in c
     for (size_t i = 0; i < num_c_reserved_keywords; i++) {
         if (strcmp(name, c_reserved_keywords[i]) == 0) {
@@ -962,27 +939,9 @@ void count_variables(const char* text, const char* filename) {
             free_string_split(instructions);
         }
     }
-    stampaVarInfo(&out1234);
     free_string_split(lines);
 }
 
-void stampaVarInfo(VarInfo *vi){
-
-    printf("OUTPUT:\n\n");
-    printf("Numero variabili: %d \n\n", vi->variables_num);
-    printf("Numero errori: %d \n\n", vi->errors_num);
-
-    for (int i = 0; i < vi->errors_num; i++) {
-        // With the fixed add_error, vi.errors[i].file should not be NULL here
-        // unless strdup failed for that specific error, which add_error now handles by not incrementing count.
-        // So this check inside the loop is less critical for crashing, but good defensive programming.
-        if (vi->errors[i].file == NULL) {
-           fprintf(stderr, "Warning: file non inizializzato per l'errore %d (index %d)\n", i+1, i);
-           continue; // Skip printing this invalid error entry
-        }
-       printf("(file: %s, line: %d)\n", vi->errors[i].file, vi->errors[i].line);
-    }
-}
 /* 
 ---------------------------------------------------------FINE VARIABILI---------------------------------------------------------
 */
@@ -1014,16 +973,16 @@ char *rimuovi_commenti(char *testo) {
         //Se troviamo "//" è l'inizio di un commento su singola linea
         else if (testo[r] == '/' && testo[r+1] == '/') {
             while (r < len && testo[r] != '\n') r++;            //ignoriamo tutto fino a fine riga
-            righe_con_commento++;                               //incremento il contatore delle righe con commenti
+            out1234.commenti++;                               //incremento il contatore delle righe con commenti
         } 
 
         //Se troviamo "/*" è l'inizio di un commento multi-linea
         else if (testo[r] == '/' && testo[r+1] == '*') {
             
-            righe_con_commento++;                                           //la riga attuale contiene un commento (anche se contenesse solo /*)
+            out1234.commenti++;                                           //la riga attuale contiene un commento (anche se contenesse solo /*)
             r += 2;                                                         //saltiamo /* iniziale
             while (r + 1 < len && !(testo[r] == '*' && testo[r+1] == '/')){ 
-                if (testo[r] == '\n') righe_con_commento++;                 //ogni nuova riga che incontriamo è all'interno del commento multilinea. Quindi è una riga con commenti
+                if (testo[r] == '\n') out1234.commenti++;                 //ogni nuova riga che incontriamo è all'interno del commento multilinea. Quindi è una riga con commenti
                 r++;                                                        //ignoriamo tutto il testo fino a fine commento
             }
             if (r+1 < len) r += 2;                                          //saltiamo */ finale
@@ -1034,17 +993,21 @@ char *rimuovi_commenti(char *testo) {
             result[w++] = testo[r++];       //copiamo il testo cosi com'è
         }
     }
-
     result[w] = '\0';
     return result;
 }
 
-
 void fai_verbose(){
     
     printf("               VERBOSE\n\n");
-    printf("Righe di commento eliminate: %d \n", righe_con_commento); 
-    //printf("Numero di file inclusi: %d \n", inclusi->len);
+    printf("<debug>: Righe di commento eliminate: %i\n", out1234.commenti);
+    printf("<debug>: Numero di variabili non valide: %i\n", out1234.variables_num);
+    printf("<debug>: Numero di errori rilevati: %i\n", out1234.errors_num);
+
+    printf("<debug>: Errori Rilevati:\n");
+    for (int i = 0; i<out1234.errors_num; i++){
+        ErrorInfo err = out1234.errors[i];
+        printf("Riga: %i, File: %s\n", err.line, err.file);
+    }
+    printf("Numero di file inclusi: %d \n", out1234.num_inclusi);
 }
-
-

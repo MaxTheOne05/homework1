@@ -25,18 +25,14 @@ int main(int argc, char *argv[]){
 			verbose = true;
 		}
 	}
-	
 	if (in_filename == NULL){
 		fprintf(stderr, "Errore! Inserire il file input.\n");
 		return 1;				
 	}
-	
 	fai_tutto(in_filename, out_filename);
 	
 	if (verbose){
 		fai_verbose();
 	}
-	
 	return 0;
 }
-

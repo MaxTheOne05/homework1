@@ -8,7 +8,6 @@
 #include "progetto.h"
 #include "funzioni.c"
 
-
 // Tipi per strutture, unioni ed enumerazioni (introducono nuovi tipi composti)
 // "struct",
 // "union",
@@ -657,7 +656,7 @@ void count_variables(const char* text, const char* filename) {
                     // *** FIX 3: Store and free clean_string result ***
                     char* cleaned_instruction = clean_string(instructions.string_list[i]);
                     // if (cleaned_instruction == NULL) {
-                    //     // Handle potential allocation error from clean_string
+                    //     Handle potential allocation error from clean_string
                     //     perror("Errore in clean_string");
                     //     continue; // Skip this instruction
                     // }
@@ -712,7 +711,7 @@ void stampaVarInfo(VarInfo *vi){
 //Funzione principale modificata
 int main() {
 
-    char *filename = "test_variabili2.c";
+    char *filename = "test_variabili.c";
     char *file_content = leggi_da_filename(filename); // Assuming leggi_da_filename returns a heap-allocated string
 
     if (file_content == NULL) {
@@ -727,8 +726,5 @@ int main() {
 
      // Free the file content read from the file
      free(file_content);
-
-
-    
     return 0;
 }
