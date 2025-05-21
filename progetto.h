@@ -87,4 +87,6 @@ void free_varinfo(VarInfo* info);
 void count_variables(const char* text, const char* filename);
 void stampaVarInfo(VarInfo* vi);
 
+char* rimuovi_commenti_alla_fine(char* line);
+
 #endif

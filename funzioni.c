@@ -176,6 +176,7 @@ int fai_tutto(char *in_filename, char *out_filename){
     Inclusi *inclusi = inizializza_inclusi(in_filename);    //passiamo il path assoluto al file di input (in_filename) per evitare che venga incluso una 2a volta
 
     //Rimuoviamo i commenti presenti nel file iniziale
+    count_variables(testo, in_filename);
     char *tmp = rimuovi_commenti(testo);        //per evitare di risolvere include commentati andiamo prima a rimuovere i commenti. Tuttavia rimuovi_commenti alloca nuova memoria
     free(testo);                                //e la assegniamo a testo. Questo significa che il valore precedente di testo non sarà più accessibile e dobbiamo liberarlo
     testo = tmp;
@@ -313,12 +314,13 @@ char* risolvi_includes(char *testo, char *input_dir, Inclusi *inclusi) {
                     aggiungi(filename, inclusi);                            //lo aggiungiamo alla lista di file gia inclusi
                     out1234.num_inclusi++;
                     char* included_content = leggi_da_filename(filename);   //prendiamo il contenuto del file da includere (il caso di fallimento in apertura è gia gestito in leggi())
-                    char* tmp = rimuovi_commenti(included_content);
+                    
                     count_variables(included_content, filename);
 
+                    char* tmp = rimuovi_commenti(included_content);
                     free(included_content);
                     included_content = tmp;
-                    count_variables(included_content, filename);
+                   
 
                     size_t lenTesto = strlen(included_content);             //verifichiamo che ci sia abbastanza spazio per scrivere
 
@@ -775,10 +777,7 @@ size_t count_words_until_char(const char* str, char stop_char) {
     // Itera sulla stringa
     while (*str != '\0') {
         if (*str == stop_char) {
-            // Conta stop_char come parola se è preceduto da uno spazio
-            if (isspace((unsigned char)*(str - 1))) {
-                word_count++;
-            }
+            word_count++;
             break; // Interrompi il ciclo quando raggiungi stop_char
         }
 
@@ -835,6 +834,7 @@ bool is_variable_declaration(const char* instruction) {
     char* first_word = extract_first_word(instruction);
     
     if (first_word == NULL || in_array(first_word, keywords_to_skip, num_keywords_to_skip)) {
+        printf("prima parola nulla o da saltare");
         return false; // Non è una dichiarazione di variabile
     }
     free(first_word); // Libera la memoria allocata per first_word
@@ -843,14 +843,17 @@ bool is_variable_declaration(const char* instruction) {
     char* equals = strchr(instruction, '=');
 
     if ((open_parenthesis != NULL && equals == NULL) || (open_parenthesis != NULL && equals != NULL && open_parenthesis < equals)) {
+        printf("parentesi ( prima di =");
         return false; // Non è una dichiarazione di variabile
     }
 
     if (equals != NULL && count_words_until_char(instruction, '=') <= 2) {
+        printf("non ci sono almeno due parole prima di =");
         return false; // Non è una dichiarazione di variabile
     }
     
     if (count_words_in_string(instruction) <= 1) {
+        printf("non c'è almeno due parole");
         return false; // Non è una dichiarazione di variabile
     }
     return true; // È una dichiarazione di variabile
@@ -894,18 +897,17 @@ void count_variables(const char* text, const char* filename) {
     const char *line_sep = "\n";
     const char *instr_sep = ";";
     const char *word_sep = " ,;\t\n";
-    // char* var_names = NULL; // This variable is unused
 
-    StringSplit lines = split_string(text, line_sep, true, false);
+    StringSplit lines = split_string(text, line_sep, true, false);  //spezza sugli \n
 
     for (size_t l = 0; l < lines.len; l++) {
-
+        lines.string_list[l] = rimuovi_commenti_alla_fine(lines.string_list[l]);
         printf("\n\n\nRiga %ld: %s \n\n", l, lines.string_list[l]);
-
+        //se la riga è piu lunga di 0 e finsice con ;
         if (strlen(lines.string_list[l]) > 0 && ends_with(lines.string_list[l], ';')) {
-
+            //spezza per istruzioni
             StringSplit instructions = split_string(lines.string_list[l], instr_sep, false, true);
-
+            //per ogni istruzione
             for (size_t i = 0; i < instructions.len; i++){
 
                 if (is_variable_declaration(instructions.string_list[i])) {
@@ -942,6 +944,15 @@ void count_variables(const char* text, const char* filename) {
     free_string_split(lines);
 }
 
+char* rimuovi_commenti_alla_fine(char* line){
+    // Rimuoviamo tutto quello che va dall'ultimo ; in poi
+    char *comment_start = strrchr(line, ';');
+    if (comment_start != NULL) {
+        *(comment_start+1) = '\0'; // Termina la stringa prima del commento
+    }
+    return line;
+}
+
 /* 
 ---------------------------------------------------------FINE VARIABILI---------------------------------------------------------
 */
@@ -962,13 +973,13 @@ char *rimuovi_commenti(char *testo) {
     while (r < len) {
 
         //Gestiamo il caso in cui ci siano "commenti" all'interno della dichiarazione di una stringa
-        if (testo[r] == '\"') {
-            result[w++] = testo[r++];                                       //scriviamo la virgoletta iniziale
-            while (r < len && testo[r] != '\"' && testo[r-1] != '\\') {     //andiamo a cercare la virgoletta di chiusura, ignorando quelle con backslash davanti
-                result[w++] = testo[r++];                                   //scriviamo tutto fino a fine stringa
+        if (testo[r] == '"') {
+            result[w++] = testo[r++];                                                   //scriviamo la virgoletta iniziale
+            while (r < len && (testo[r] != '"' || (r > 0 && testo[r-1] == '\\'))) {     //andiamo a cercare la virgoletta di chiusura, ignorando quelle con backslash davanti
+                result[w++] = testo[r++];                                               //scriviamo tutto fino a fine stringa
             }
-            result[w++] = testo[r++];                                       //scriviamo la virgoletta finale
-        } 
+            result[w++] = testo[r++];                                                   //scriviamo la virgoletta finale
+        }
 
         //Se troviamo "//" è l'inizio di un commento su singola linea
         else if (testo[r] == '/' && testo[r+1] == '/') {
@@ -988,7 +999,7 @@ char *rimuovi_commenti(char *testo) {
             if (r+1 < len) r += 2;                                          //saltiamo */ finale
         } 
 
-        //Se siamo rrivati qui significa che non siamo in nessun commento
+        //Se siamo arrivati qui significa che non siamo in nessun commento
         else {
             result[w++] = testo[r++];       //copiamo il testo cosi com'è
         }
@@ -1000,14 +1011,14 @@ char *rimuovi_commenti(char *testo) {
 void fai_verbose(){
     
     printf("               VERBOSE\n\n");
-    printf("<debug>: Righe di commento eliminate: %i\n", out1234.commenti);
-    printf("<debug>: Numero di variabili non valide: %i\n", out1234.variables_num);
-    printf("<debug>: Numero di errori rilevati: %i\n", out1234.errors_num);
+    printf("Righe di commento eliminate: %i\n", out1234.commenti);
+    printf("Numero di file inclusi: %d \n", out1234.num_inclusi);
+    printf("Numero di variabili totali: %i\n", out1234.variables_num);
+    printf("Numero di variabili NON valide: %i\n", out1234.errors_num);
 
-    printf("<debug>: Errori Rilevati:\n");
+    printf("Errori Rilevati:\n");
     for (int i = 0; i<out1234.errors_num; i++){
         ErrorInfo err = out1234.errors[i];
-        printf("Riga: %i, File: %s\n", err.line, err.file);
+        printf("\tRiga: %i, File: %s\n", err.line, err.file);
     }
-    printf("Numero di file inclusi: %d \n", out1234.num_inclusi);
 }
